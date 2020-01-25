@@ -3,8 +3,12 @@ import torch
 from torch_geometric.data import Data
 import sys, os
 import numpy as np, pandas as pd
-from models import generate_model, ModelTrainer
+from gcn4r.models import get_model
+from gcn4r.model_trainer import ModelTrainer
 from torch_geometric.utils.convert import from_scipy_sparse_matrix
+import scipy.sparse as sps
+
+SEED=42
 
 def train_model(inputs_dir='inputs',
 				learning_rate=1e-4,
@@ -20,7 +24,7 @@ def train_model(inputs_dir='inputs',
 				decoder_type='inner',
 				model_save_loc='saved_model.pkl',
 				predictions_save_path='predictions.pkl',
-				predict_set='test',
+				predict=False,
 				lambda_kl=1e-3,
 				lambda_adv=1e-3,
 				lambda_cluster=1e-3,
@@ -31,10 +35,10 @@ def train_model(inputs_dir='inputs',
 				feature_matrix='X.npy'
 				):
 
-	if isinstance(sparse_matrix,str):
+	if isinstance(sparse_matrix,str) and os.path.exists(sparse_matrix):
 		sparse_matrix=sps.load_npz(sparse_matrix)
 
-	if isinstance(feature_matrix,str):
+	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix):
 		X=np.load(feature_matrix)
 	else:
 		X=feature_matrix
@@ -58,6 +62,8 @@ def train_model(inputs_dir='inputs',
 					attention_heads,
 					decoder_type)
 
+	np.random.seed(SEED)
+
 	G=model.split_edges(G, val_ratio=0.05, test_ratio=0.1)
 
 	if torch.cuda.is_available():
@@ -77,7 +83,6 @@ def train_model(inputs_dir='inputs',
 						n_epochs,
 						optimizer_opts,
 						scheduler_opts,
-						loss_fn='ce',
 						epoch_cluster=epoch_cluster,
 						K=K,
 						Niter=Niter,
@@ -95,11 +100,11 @@ def train_model(inputs_dir='inputs',
 
 		G,z,cl,c,A=trainer.predict(G)
 
-		torch.save(dict(G=G,
-						z=z,
-						cl=cl,
-						c=c,
-						A=A),predictions_save_path)
+		output=dict(G=G,z=z,cl=cl,c=c,A=A)
+
+		torch.save(output,predictions_save_path)
+
+		return output
 
 
 if __name__=='__main__':

@@ -1,3 +1,5 @@
+import torch
+import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn.models.autoencoder import GAE, VGAE, ARGA, ARGVA
 from torch_geometric.nn import GCNConv, GATConv

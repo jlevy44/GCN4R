@@ -1,3 +1,14 @@
+import torch
+import torch.nn as nn
+import copy
+from sklearn.metrics import classification_report, roc_curve
+from gcn4r.schedulers import Scheduler
+from gcn4r.cluster import *
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set(style='white')
 
 
 class ModelTrainer:
@@ -219,8 +230,6 @@ class ModelTrainer:
 		A=self.model.decode(z)
 
 		return G,z,cl,c,A
-
-
 
 	def fit(self, G, verbose=False, print_every=10, save_model=True, plot_training_curves=False, plot_save_file=None, print_val_confusion=True, save_val_predictions=True):
 		"""Fits the segmentation or classification model to the patches, saving the model with the lowest validation score.

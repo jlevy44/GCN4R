@@ -1,3 +1,7 @@
+import torch
+from torch_cluster.knn import nearest
+import time
+
 def KMeans(x, K=10, Niter=10, verbose=True):
     # https://github.com/jeanfeydy/geomloss/blob/60785fdbb6e9e8f2689d881e3fc027887a2ac4e4/geomloss/examples/sinkhorn_multiscale/plot_optimal_transport_cluster.py
     N, D = x.shape
