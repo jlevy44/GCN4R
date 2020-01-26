@@ -3,18 +3,24 @@ import torch
 from torch_geometric.data import Data
 import sys, os
 import numpy as np, pandas as pd
+import gcn4r
 from gcn4r.models import get_model
 from gcn4r.model_trainer import ModelTrainer
 from torch_geometric.utils.convert import from_scipy_sparse_matrix
 import scipy.sparse as sps
 
 SEED=42
+GCN4R_PATH = os.path.join(os.path.dirname(gcn4r.__file__), "data")
+DATA = dict(physician=dict(A=os.path.join(GCN4R_PATH,'A_physician.csv'),
+							X=os.path.join(GCN4R_PATH,'X_physician.csv')),
+			lawyer=dict(A=os.path.join(GCN4R_PATH,'A_lawyer.npy'),
+						X=os.path.join(GCN4R_PATH,'X_lawyer.npz')))
+
 
 def train_model(inputs_dir='inputs',
 				learning_rate=1e-4,
 				n_epochs=300,
 				encoder_base='GCNConv',
-				n_input=30,
 				n_hidden=30,
 				n_layers=2,
 				discriminator_layers=[20,20],
@@ -32,16 +38,31 @@ def train_model(inputs_dir='inputs',
 				K=10,
 				Niter=10,
 				sparse_matrix='A.npz',
-				feature_matrix='X.npy'
+				feature_matrix='X.npy',
+				custom_dataset='none'
 				):
 
-	if isinstance(sparse_matrix,str) and os.path.exists(sparse_matrix):
-		sparse_matrix=sps.load_npz(sparse_matrix)
+	assert custom_dataset in ['lawyer', 'physician', 'none']
 
-	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix):
-		X=np.load(feature_matrix)
+	if custom_dataset != 'none':
+		sparse_matrix=DATA[custom_dataset]['A']
+		feature_matrix=DATA[custom_dataset]['X']
+
+	if isinstance(sparse_matrix,str) and os.path.exists(sparse_matrix) and feature_matrix.split('.')[-1] in ['npz','csv']:
+		if sparse_matrix.endswith('.csv'):
+			sparse_matrix=sps.csr_matrix(pd.read_csv(sparse_matrix).values)
+		else:
+			sparse_matrix=sps.load_npz(sparse_matrix)
+
+	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix) and feature_matrix.split('.')[-1] in ['npy','csv']:
+		if feature_matrix.endswith('.csv'):
+			X=pd.read_csv(feature_matrix).values
+		else:
+			X=np.load(feature_matrix)
 	else:
 		X=feature_matrix
+
+	n_input = X.shape[1]
 
 	edge_index,edge_attr=from_scipy_sparse_matrix(sparse_matrix)
 
@@ -106,6 +127,8 @@ def train_model(inputs_dir='inputs',
 
 		return output
 
+def main():
+	fire.Fire(train_model)
 
 if __name__=='__main__':
-	fire.Fire(train_model)
+	main()
