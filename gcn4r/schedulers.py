@@ -96,11 +96,11 @@ class Scheduler:
 	def get_lr(self):
 		"""Return current learning rate.
 
-        Returns
-        -------
-        float
-            Current learning rate.
+		Returns
+		-------
+		float
+			Current learning rate.
 
-        """
+		"""
 		lr = (self.initial_lr if self.scheduler_choice == 'null' else self.scheduler.optimizer.param_groups[0]['lr'])
 		return lr

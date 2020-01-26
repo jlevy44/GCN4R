@@ -71,12 +71,12 @@ class ModelTrainer:
 		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter)
 		self.lambdas=lambdas
 
-    def establish_clusters(self, x, edge_index):
-        z=self.model.encode(x, edge_index)
-        self.centroids=torch.tensor(KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)[1],dtype=torch.float)
-        if torch.cuda.is_available():
-            self.centroids=self.centroids.cuda()
-        return self.centroids
+	def establish_clusters(self, x, edge_index):
+		z=self.model.encode(x, edge_index)
+		self.centroids=torch.tensor(KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)[1],dtype=torch.float)
+		if torch.cuda.is_available():
+			self.centroids=self.centroids.cuda()
+		return self.centroids
 
 	def calc_loss(self, x, edge_index, val_edge_index=None):
 		z = self.model.encode(x, edge_index)
@@ -96,8 +96,8 @@ class ModelTrainer:
 		loss = losses['recon']
 		for k in ['adv','kl','recon']:
 			loss+=self.lambdas[k]*losses[k]
-	    # if self.model.encoder.variational:
-	    #     loss = loss + (1 / data.num_nodes) * model.kl_loss()
+		# if self.model.encoder.variational:
+		#     loss = loss + (1 / data.num_nodes) * model.kl_loss()
 		return loss #self.loss_fn(y_pred, y_true)
 
 	def calc_val_loss(self, x, edge_index):

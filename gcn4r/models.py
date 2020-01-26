@@ -14,7 +14,7 @@ def get_model(encoder_base='GCNConv',
 				bias=True,
 				attention_heads=1,
 				decoder_type='inner'):
-    conv_operators=dict(GraphConv=GraphConv,
+	conv_operators=dict(GraphConv=GraphConv,
 						GCNConv=GCNConv,
 						GATConv=GATConv,
 						SAGEConv=SAGEConv)
@@ -22,7 +22,7 @@ def get_model(encoder_base='GCNConv',
 					VGAE=VGAE,
 					ARGA=ARGA,
 					ARGVA=ARGVA)
-    assert encoder_base in list(conv_operators.keys())
+	assert encoder_base in list(conv_operators.keys())
 	assert attention_heads == 1
 	assert ae_type in list(ae_types.keys())
 	assert decoder_type in ['inner']
@@ -37,7 +37,7 @@ def get_model(encoder_base='GCNConv',
 
 class Encoder(nn.Module):
 	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True):
-        super(Encoder, self).__init__()
+		super(Encoder, self).__init__()
 		self.convs=[]
 		self.convs.append(conv_operator(n_input,n_hidden,bias=bias))
 		for i in range(self.n_layers):
@@ -58,18 +58,18 @@ class Encoder(nn.Module):
 			return self.convs[-1](z,edge_index)
 
 class Discriminator(nn.Module):
-    def __init__(self, n_input, hidden_layers=[30,20]):
-        super(Discriminator, self).__init__()
+	def __init__(self, n_input, hidden_layers=[30,20]):
+		super(Discriminator, self).__init__()
 		hidden_layers=[n_input]+hidden_layers+[1]
 		self.fcs=[]
 		for (i,layer) in enumerate(hidden_layers[:-1]):
 			layer=nn.Linear(hidden_layers[i],hidden_layers[i+1])
 			torch.nn.init.xavier_uniform(layer.weight)
-	        self.fcs.append(layer)
+			self.fcs.append(layer)
 		for i in range(len(self.fcs)-1):
 			self.fcs[i]=nn.Sequential(self.fcs[i], nn.ReLU())
-        self.fcs[-1]=nn.Sequential(self.fcs[-1],nn.Sigmoid())
+		self.fcs[-1]=nn.Sequential(self.fcs[-1],nn.Sigmoid())
 		self.fcs=nn.Sequential(*self.fcs)
 
-    def forward(self, z):
-        return self.fcs(z)
+	def forward(self, z):
+		return self.fcs(z)
