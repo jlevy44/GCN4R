@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import copy
-from sklearn.metrics import classification_report, roc_curve
+from sklearn.metrics import classification_report, roc_curve, roc_auc_score, confusion_matrix
 from gcn4r.schedulers import Scheduler
 from gcn4r.cluster import *
+import numpy as np, pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -20,8 +21,6 @@ class ModelTrainer:
 		Deep learning pytorch model.
 	n_epoch:int
 		Number training epochs.
-	validation_dataloader:DataLoader
-		Dataloader of validation dataset.
 	optimizer_opts:dict
 		Options for optimizer.
 	scheduler_opts:dict
@@ -35,7 +34,6 @@ class ModelTrainer:
 	"""
 	def __init__(self, model,
 						n_epoch=300,
-						validation_dataloader=None,
 						optimizer_opts=dict(name='adam',lr=1e-3,weight_decay=1e-4),
 						scheduler_opts=dict(scheduler='warm_restarts',lr_scheduler_decay=0.5,T_max=10,eta_min=5e-8,T_mult=2),
 						loss_fn='ce',
@@ -55,7 +53,6 @@ class ModelTrainer:
 		self.optimizer = optimizers[optimizer_opts.pop('name')](self.model.parameters(),**optimizer_opts)
 		self.scheduler = Scheduler(optimizer=self.optimizer,opts=scheduler_opts)
 		self.n_epoch = n_epoch
-		self.validation_dataloader = validation_dataloader
 		self.loss_fn = loss_functions[loss_fn]
 		self.loss_fn_name = loss_fn
 		self.bce=(self.loss_fn_name=='bce')
@@ -80,21 +77,21 @@ class ModelTrainer:
 
 	def calc_loss(self, x, edge_index, val_edge_index=None):
 		z = self.model.encode(x, edge_index)
-		if val_edge_index:
+		if not isinstance(val_edge_index, type(None)):
 			edge_index=val_edge_index
 		losses=dict(cluster=0.,
 					adv=0.,
 					kl=0.,
-					recon=0.))
+					recon=0.)
 		losses['recon'] = self.model.recon_loss(z, edge_index)
 		if self.model.encoder.variational:
 			losses['kl'] = self.model.kl_loss()
 		if self.model.encoder.adversarial:
 			losses['adv'] = self.model.discriminator_loss(z)
 		if self.add_cluster_loss:
-			losses['cluster'] = self.cluster_loss_fn(z,self.centroids)
+			losses['cluster'] = self.cluster_loss_fn(z,self.centroids)[0]
 		loss = losses['recon']
-		for k in ['adv','kl','recon']:
+		for k in ['adv','kl','recon','cluster']:
 			loss+=self.lambdas[k]*losses[k]
 		# if self.model.encoder.variational:
 		#     loss = loss + (1 / data.num_nodes) * model.kl_loss()
@@ -127,6 +124,7 @@ class ModelTrainer:
 		fpr, tpr, thresholds = roc_curve(y_true, y_pred)
 		threshold=thresholds[np.argmin(np.sum((np.array([0,1])-np.vstack((fpr, tpr)).T)**2,axis=1)**.5)]
 		y_pred = (y_pred>threshold).astype(int)
+		print(classification_report(y_true, y_pred))
 		return threshold, pd.DataFrame(confusion_matrix(y_true,y_pred),index=['F','T'],columns=['-','+']).iloc[::-1,::-1].T
 
 	def loss_backward(self,loss):
@@ -157,11 +155,10 @@ class ModelTrainer:
 
 		"""
 		self.model.train(True)
+		starttime=time.time()
 		x,edge_index=G.x,G.train_pos_edge_index
-
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
-
 		loss = self.calc_loss(x,edge_index)
 		train_loss=loss.item()
 		self.optimizer.zero_grad()
@@ -218,16 +215,30 @@ class ModelTrainer:
 			Predictions or embeddings.
 		"""
 
-		x,edge_index,test_edge_index=G.x,G.train_pos_edge_index,G.test_pos_edge_index
+		with torch.no_grad():
+			x,edge_index,test_pos_edge_index,test_neg_edge_index=G.x,G.train_pos_edge_index,G.test_pos_edge_index,G.test_neg_edge_index
 
-		if torch.cuda.is_available():
-			x,edge_index = x.cuda(),edge_index.cuda()
+			if torch.cuda.is_available():
+				x,edge_index = x.cuda(),edge_index.cuda()
 
-		z = self.model.encode(x, edge_index)
+			z = self.model.encode(x, edge_index)
 
-		cl,c=KMeans(z, K=self.K, Niter=self.Kiter, verbose=False)
+			cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
 
-		A=self.model.decode(z)
+			cl,c=cl.numpy(),c.numpy()
+
+			A=self.model.decoder.forward_all(z).numpy()
+
+			y_pred=np.hstack((self.model.decode(z,test_pos_edge_index).numpy().flatten(),self.model.decode(z,test_neg_edge_index).numpy().flatten()))
+			y_test=np.hstack((np.ones(test_pos_edge_index.shape[1]),np.zeros(test_neg_edge_index.shape[1])))
+
+			threshold,confusion=self.calc_best_confusion(y_pred, y_test)
+
+			print("AUC={}, threshold={}".format(roc_auc_score(y_test,y_pred),threshold))
+
+			print(confusion)
+
+			z=z.numpy()
 
 		return G,z,cl,c,A
 
@@ -285,9 +296,9 @@ class ModelTrainer:
 			if val_loss <= min(self.val_losses) and save_model:
 				min_val_loss = val_loss
 				best_epoch = epoch
-				best_model = copy.deepcopy(self.model)
+				best_model = copy.deepcopy(self.model.state_dict())
 		if save_model:
-			self.model = best_model
+			self.model.load_state_dict(best_model)
 		return self, min_val_loss, best_epoch
 
 	def plot_train_val_curves(self, save_file=None):

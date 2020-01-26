@@ -1,5 +1,6 @@
 import torch
-from torch_cluster.knn import nearest
+import torch.nn as nn
+from torch_cluster.nearest import nearest
 import time
 
 def KMeans(x, K=10, Niter=10, verbose=True):

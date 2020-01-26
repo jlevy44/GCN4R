@@ -2,6 +2,7 @@ from setuptools import setup
 from setuptools.command.install import install
 import subprocess
 import os
+
 PACKAGES=['pysnooper',
             'fire',
             'numpy==1.18.1',
@@ -14,11 +15,13 @@ PACKAGES=['pysnooper',
             'torch-geometric==1.3.2',
             'torch-scatter==1.4.0',
             'torch-sparse==0.4.3',
-            'torchvision==0.5.0']
+            'torchvision==0.5.0',
+            'matplotlib==3.1.2',
+            'seaborn==0.10.0',
+            'plotly==4.5.0']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
-
 
 setup(name='gcn4r',
       version='0.1',
@@ -29,7 +32,7 @@ setup(name='gcn4r',
       license='MIT',
       scripts=[],
       entry_points={
-            'console_scripts':['gcn4r-train=gcn4r.train_model:main']
+            'console_scripts':['gcn4r=gcn4r.cli:main']
       },
       long_description=long_description,
       long_description_content_type='text/markdown',
