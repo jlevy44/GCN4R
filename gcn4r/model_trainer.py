@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+import random
 sns.set(style='white')
 
 
@@ -43,7 +44,8 @@ class ModelTrainer:
 						epoch_cluster=301,
 						K=10,
 						Niter=10,
-						lambdas=dict()):
+						lambdas=dict(),
+						task='link_prediction'):
 
 		self.model = model
 		optimizers = {'adam':torch.optim.Adam, 'sgd':torch.optim.SGD}
@@ -67,6 +69,7 @@ class ModelTrainer:
 		self.Niter=Niter
 		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter)
 		self.lambdas=lambdas
+		self.task = task
 
 	def establish_clusters(self, x, edge_index):
 		z=self.model.encode(x, edge_index)
@@ -156,7 +159,10 @@ class ModelTrainer:
 		"""
 		self.model.train(True)
 		starttime=time.time()
-		x,edge_index=G.x,G.train_pos_edge_index
+		if self.task == 'link_prediction':
+			x,edge_index=G.x,G.train_pos_edge_index
+		else:
+			x,edge_index=G.x,G.edge_index
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
 		loss = self.calc_loss(x,edge_index)
@@ -190,7 +196,10 @@ class ModelTrainer:
 			Validation loss for epoch.
 		"""
 		self.model.train(False)
-		x,edge_index,val_edge_index=G.x,G.train_pos_edge_index,G.val_pos_edge_index
+		if self.task == 'link_prediction':
+			x,edge_index,val_edge_index=G.x,G.train_pos_edge_index,G.val_pos_edge_index
+		else:
+			x,edge_index,val_edge_index=G.x,G.edge_index,G.edge_index
 
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
@@ -214,9 +223,25 @@ class ModelTrainer:
 		array
 			Predictions or embeddings.
 		"""
-
+		self.model.train((False if self.task!='generation' else True))
 		with torch.no_grad():
-			x,edge_index,test_pos_edge_index,test_neg_edge_index=G.x,G.train_pos_edge_index,G.test_pos_edge_index,G.test_neg_edge_index
+			if self.task == 'link_prediction':
+				x,edge_index,test_pos_edge_index,test_neg_edge_index=G.x,G.train_pos_edge_index,G.test_pos_edge_index,G.test_neg_edge_index
+			else:
+				num_nodes = G.num_nodes
+				row, col = G.edge_index
+		        neg_adj_mask = torch.ones(num_nodes, num_nodes, dtype=torch.uint8)
+		        neg_adj_mask = neg_adj_mask.triu(diagonal=1).to(torch.bool)
+		        neg_adj_mask[row, col] = 0
+		        neg_row, neg_col = neg_adj_mask.nonzero().t()
+		        perm = random.sample(range(neg_row.size(0)),
+		                             G.edge_index.shape[1])
+		        perm = torch.tensor(perm)
+		        perm = perm.to(torch.long)
+		        neg_row, neg_col = neg_row[perm], neg_col[perm]
+
+		        x,edge_index,test_pos_edge_index,test_neg_edge_index = G.x,G.edge_index,G.edge_index,torch.stack([neg_row, neg_col], dim=0)
+
 
 			if torch.cuda.is_available():
 				x,edge_index = x.cuda(),edge_index.cuda()

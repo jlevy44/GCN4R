@@ -1,4 +1,6 @@
 library(reticulate)
+library(statnet)
+library(latentnet)
 
 #' Install GCN4R Python Package.
 #'
@@ -115,3 +117,43 @@ visualize <- function(predictions_save_path='predictions.pkl',
                        output_fname,
                        size)
 }
+
+
+
+# R functions
+
+build_network <- function (reldata, nodecov, directed=T) {
+  pnet <- network(reldata,directed=directed,matrixtype="adjacency",
+                  vertex.attr=nodecov,
+                  vertex.attrnames=colnames(nodecov))
+  return(pnet)
+}
+
+plot_network <- function (net,fname,mode="fruchtermanreingold") {
+  png(fname)
+  plot(net,mode=mode,displaylabels=T)
+  dev.off()
+}
+
+load_reldata <- function (network.txt) {
+  reldata <- scan(network.txt)
+  nr=sqrt(length(reldata))
+  reldata=matrix(reldata,ncol=nr,nrow=nr,byrow=T)
+  return(reldata)
+}
+
+load_covariate_data <- function (covariate.dat, nr) {
+  nodecov <- scan(covariate.dat)
+  nodecov <- matrix(nodecov,nrow=nr,byrow=T)
+  return(nodecov)
+}
+
+calculate_nr <- function (reldata) {sqrt(length(reldata))}
+
+sim.network <- function (model) {simulate(model)}
+
+net2mat <- function (G) {
+  G=as.matrix.network(G)
+  return(G)
+}
+# add ergm, ergmm, mple

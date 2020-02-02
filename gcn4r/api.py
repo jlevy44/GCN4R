@@ -140,10 +140,12 @@ def train_model_(inputs_dir,
 				custom_dataset,
 				val_ratio,
 				test_ratio,
-				random_seed=42
+				random_seed=42,
+				task='link_prediction'
 				):
 
 	assert custom_dataset in ['lawyer', 'physician', 'none']
+	assert task in ['link_prediction', 'generation', 'clustering', 'embedding']
 	torch.manual_seed(random_seed)
 	np.random.seed(random_seed)
 	random.seed(random_seed)
@@ -191,9 +193,8 @@ def train_model_(inputs_dir,
 					attention_heads,
 					decoder_type)
 
-
-
-	G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
+	if task in 'link_prediction':
+		G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
 
 	if torch.cuda.is_available():
 		model=model.cuda()

@@ -18,7 +18,8 @@ PACKAGES=['pysnooper',
             'torchvision==0.5.0',
             'matplotlib==3.1.2',
             'seaborn==0.10.0',
-            'plotly==4.5.0']
+            'plotly==4.5.0',
+            'rpy2==2.9.4']
 
 with open('README.md','r', encoding='utf-8') as f:
       long_description = f.read()
