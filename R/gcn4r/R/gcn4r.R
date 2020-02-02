@@ -135,6 +135,12 @@ plot_network <- function (net,fname,mode="fruchtermanreingold") {
   dev.off()
 }
 
+plot_model <- function (model,fname) {
+  png(fname)
+  statnet:::plot.ergm(model)#latentnet:::plot.ergmm(model,displaylabels=T)
+  dev.off()
+}
+
 load_reldata <- function (network.txt) {
   reldata <- scan(network.txt)
   nr=sqrt(length(reldata))
