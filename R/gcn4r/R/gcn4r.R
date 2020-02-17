@@ -191,16 +191,38 @@ sim.and.plot <- function(nv=c(32, 32, 32, 32),
 }
 
 to.igraph <- function(A,X){
-  return(graph_from_data_frame(get.edgelist(graph.adjacency(A)), directed = TRUE, vertices = X))
+  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
 }
 
+to.networkx <- function(A) {
+  return(GCN4R$api$nx$from_edgelist(A))
+}
 
-run.tests <- function() {
-  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
-  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
-  A<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
-  net<-to.igraph(A,setDT(as.data.frame(results$X), keep.rownames = TRUE)[])
+run.tests <- function(K=3L) {
+  GCN4R<-import_gcn4r()
+  # run GCN model
+  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
+  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
+
+  # create synthetic graph
+  A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
+  A<-get.edgelist(graph.adjacency(A.adj))
+  X<-setDT(as.data.frame(results$X), keep.rownames = TRUE)[]
+  net<-to.igraph(A,X)
   plot.net(net,results$cl)
+
+  # create real graph, plot found clusters
+  G<-matrix(as.vector(results$G$edge_index$numpy()), nc = 2, byrow = TRUE)+1
+  #G<-as.matrix(data.frame(G[c(T,F)],G[c(F,T)]))
+  net<-to.igraph(G,X)
+  plot.net(net,results$cl)
+
+  # run louvain, plot found communities
+  coms<-GCN4R$api$cdlib$algorithms$louvain(to.networkx(G))
+  coms.dict<-coms$to_node_community_map()
+  coms<-unlist(lapply(1:nrow(A.adj),function(i){coms.dict[i]}))
+  plot.net(net,coms)
+
   return(results)
 
 }
