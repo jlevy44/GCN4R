@@ -324,12 +324,13 @@ class ModelTrainer:
 			self.train_losses.append(train_loss)
 			val_loss = self.val_loop(epoch,G, print_val_confusion=False, save_predictions=False)
 			val_time=time.time()-current_time
-			self.val_losses.append(val_loss)
+			if self.add_cluster_loss:
+				self.val_losses.append(val_loss)
 			if False and verbose and not (epoch % print_every):
 				if plot_training_curves:
 					self.plot_train_val_curves(plot_save_file)
 				print("Epoch {}: Train Loss {}, Val Loss {}, Train Time {}, Val Time {}".format(epoch,train_loss,val_loss,train_time,val_time))
-			if val_loss <= min(self.val_losses) and save_model and self.add_cluster_loss:
+			if self.add_cluster_loss and val_loss <= min(self.val_losses) and save_model:
 				min_val_loss = val_loss
 				best_epoch = epoch
 				best_model = copy.deepcopy(self.model.state_dict())
