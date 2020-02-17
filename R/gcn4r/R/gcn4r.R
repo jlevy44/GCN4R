@@ -3,6 +3,8 @@ library(statnet)
 library(latentnet)
 library(wfg)
 library(igraph)
+library(data.table)
+
 
 
 #' Install GCN4R Python Package.
@@ -37,7 +39,7 @@ detect.conda <- function(conda.env='gcn4r'){
 #'
 #' @param python.exec Python executable.
 #' @export
-source.python <- function(python.exec='/usr/local/bin/python3'){
+source.python <- function(python.exec='/anaconda2/envs/gcn4r/bin/python'){
   reticulate:::use_python(python.exec)
 }
 
@@ -45,7 +47,7 @@ source.python <- function(python.exec='/usr/local/bin/python3'){
 #'
 #' @export
 import_gcn4r <- function() {
-  gcn4r<-reticulate:::import('gcn4r')
+  GCN4R<-reticulate:::import('gcn4r')
 }
 
 train_model<- function (inputs_dir='inputs',
@@ -73,8 +75,9 @@ train_model<- function (inputs_dir='inputs',
                         custom_dataset='none',
                         val_ratio=0.05,
                         test_ratio=0.1,
-                        random_seed=42L) {
-  gcn4r$api$train_model_(inputs_dir,
+                        random_seed=42L,
+                        task='clustering') {
+  results<-GCN4R$api$train_model_(inputs_dir,
                          learning_rate,
                          n_epochs,
                          encoder_base,
@@ -99,8 +102,12 @@ train_model<- function (inputs_dir='inputs',
                          custom_dataset,
                          val_ratio,
                          test_ratio,
-                         random_seed)
+                         random_seed,
+                         task)
   reticulate::py_run_string("import sys; sys.stdout.flush()")
+  if (predict) {
+    return(results)
+  }
 }
 
 visualize <- function(predictions_save_path='predictions.pkl',
@@ -111,7 +118,7 @@ visualize <- function(predictions_save_path='predictions.pkl',
                       axes_off=F,
                       output_fname='network_plot.html',
                       size=4L) {
-  gcn4r$api$visualize_(predictions_save_path,
+  GCN4R$api$visualize_(predictions_save_path,
                        use_predicted_graph,
                        pos_threshold,
                        layout,
@@ -167,7 +174,11 @@ net2mat <- function (G) {
 }
 # add ergm, ergmm, mple
 
-
+plot.net <- function(net,group) {
+  V(net)$size <- 7
+  V(net)$color <- group
+  plot(net, vertex.label='')
+}
 
 sim.and.plot <- function(nv=c(32, 32, 32, 32),
                          p.in=c(0.452, 0.452, 0.452, 0.452),
@@ -175,13 +186,22 @@ sim.and.plot <- function(nv=c(32, 32, 32, 32),
   net.simu <- network.simu(nv=nv, p.in=p.in, p.out=p.out, p.del=p.del)
   net <- net.simu$net
   group <- net.simu$group
+  plot.net(net,group)
 
-  V(net)$size <- 7
-  V(net)$color <- group
-  plot(net, vertex.label='')
 }
 
 to.igraph <- function(A,X){
-  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
+  return(graph_from_data_frame(get.edgelist(graph.adjacency(A)), directed = TRUE, vertices = X))
+}
+
+
+run.tests <- function() {
+  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
+  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
+  A<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
+  net<-to.igraph(A,setDT(as.data.frame(results$X), keep.rownames = TRUE)[])
+  plot.net(net,results$cl)
+  return(results)
+
 }
 

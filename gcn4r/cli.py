@@ -31,7 +31,8 @@ class Commands(object):
 					feature_matrix='X.npy',
 					custom_dataset='none',
 					val_ratio=0.05,
-					test_ratio=0.1
+					test_ratio=0.1,
+					task='clustering'
 					):
 
 		train_model_(inputs_dir,
@@ -58,7 +59,8 @@ class Commands(object):
 						feature_matrix,
 						custom_dataset,
 						val_ratio,
-						test_ratio
+						test_ratio,
+						task=task
 						)
 
 	def visualize(self,

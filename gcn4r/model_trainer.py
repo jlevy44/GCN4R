@@ -230,17 +230,17 @@ class ModelTrainer:
 			else:
 				num_nodes = G.num_nodes
 				row, col = G.edge_index
-		        neg_adj_mask = torch.ones(num_nodes, num_nodes, dtype=torch.uint8)
-		        neg_adj_mask = neg_adj_mask.triu(diagonal=1).to(torch.bool)
-		        neg_adj_mask[row, col] = 0
-		        neg_row, neg_col = neg_adj_mask.nonzero().t()
-		        perm = random.sample(range(neg_row.size(0)),
-		                             G.edge_index.shape[1])
-		        perm = torch.tensor(perm)
-		        perm = perm.to(torch.long)
-		        neg_row, neg_col = neg_row[perm], neg_col[perm]
+				neg_adj_mask = torch.ones(num_nodes, num_nodes, dtype=torch.uint8)
+				neg_adj_mask = neg_adj_mask.triu(diagonal=1).to(torch.bool)
+				neg_adj_mask[row, col] = 0
+				neg_row, neg_col = neg_adj_mask.nonzero().t()
+				perm = random.sample(range(neg_row.size(0)),
+									 G.edge_index.shape[1])
+				perm = torch.tensor(perm)
+				perm = perm.to(torch.long)
+				neg_row, neg_col = neg_row[perm], neg_col[perm]
 
-		        x,edge_index,test_pos_edge_index,test_neg_edge_index = G.x,G.edge_index,G.edge_index,torch.stack([neg_row, neg_col], dim=0)
+				x,edge_index,test_pos_edge_index,test_neg_edge_index = G.x,G.edge_index,G.edge_index,torch.stack([neg_row, neg_col], dim=0)
 
 
 			if torch.cuda.is_available():
@@ -265,7 +265,7 @@ class ModelTrainer:
 
 			z=z.numpy()
 
-		return G,z,cl,c,A
+		return G,z,cl,c,A,threshold
 
 	def fit(self, G, verbose=False, print_every=10, save_model=True, plot_training_curves=False, plot_save_file=None, print_val_confusion=True, save_val_predictions=True):
 		"""Fits the segmentation or classification model to the patches, saving the model with the lowest validation score.
@@ -305,7 +305,7 @@ class ModelTrainer:
 		for epoch in range(self.n_epoch):
 			if epoch >= self.epoch_cluster:
 				self.add_cluster_loss=True
-				self.centroids=self.establish_clusters(G.x, G.train_pos_edge_index)
+				self.centroids=self.establish_clusters(G.x, (G.train_pos_edge_index if self.task=='link_prediction' else G.edge_index))
 			start_time=time.time()
 			train_loss = self.train_loop(epoch,G)
 			current_time=time.time()

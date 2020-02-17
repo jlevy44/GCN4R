@@ -15,6 +15,7 @@ import networkx as nx
 from networkx import kamada_kawai_layout, spring_layout
 from sklearn.decomposition import PCA
 import seaborn as sns
+import cdlib
 sns.set()
 
 GCN4R_PATH = os.path.join(os.path.dirname(gcn4r.__file__), "data")
@@ -216,7 +217,8 @@ def train_model_(inputs_dir,
 						epoch_cluster=epoch_cluster,
 						K=K,
 						Niter=Niter,
-						lambdas=lambdas)
+						lambdas=lambdas,
+						task=task)
 
 	if not predict:
 
@@ -228,11 +230,11 @@ def train_model_(inputs_dir,
 
 		trainer.model.load_state_dict(torch.load(model_save_loc))
 
-		_,z,cl,c,A=trainer.predict(G)
+		_,z,cl,c,A,threshold=trainer.predict(G)
 
 		G=Data(X,edge_index,edge_attr)
 
-		output=dict(G=G,z=z,cl=cl,c=c,A=A)
+		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold)
 
 		torch.save(output,predictions_save_path)
 

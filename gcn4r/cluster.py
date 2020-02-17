@@ -8,6 +8,7 @@ def KMeans(x, K=10, Niter=10, verbose=True):
 	N, D = x.shape
 	start = time.time()
 	perm = torch.randperm(N)
+	print(K)
 	idx = perm[:K]
 	c = x[idx, :].clone()
 
