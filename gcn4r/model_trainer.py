@@ -45,7 +45,8 @@ class ModelTrainer:
 						K=10,
 						Niter=10,
 						lambdas=dict(),
-						task='link_prediction'):
+						task='link_prediction',
+						use_mincut=False):
 
 		self.model = model
 		optimizers = {'adam':torch.optim.Adam, 'sgd':torch.optim.SGD}
@@ -70,6 +71,7 @@ class ModelTrainer:
 		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter)
 		self.lambdas=lambdas
 		self.task = task
+		self.use_mincut=use_mincut
 
 	def establish_clusters(self, x, edge_index):
 		z=self.model.encode(x, edge_index)
@@ -79,7 +81,11 @@ class ModelTrainer:
 		return self.centroids
 
 	def calc_loss(self, x, edge_index, val_edge_index=None):
-		z = self.model.encode(x, edge_index)
+		if not self.use_mincut:
+			z = self.model.encode(x, edge_index)
+		else:
+			z, s, mc1, o1 = self.model.encode(x, edge_index)
+		# print(z.shape)
 		if not isinstance(val_edge_index, type(None)):
 			edge_index=val_edge_index
 		losses=dict(cluster=0.,
@@ -92,7 +98,7 @@ class ModelTrainer:
 		if self.model.encoder.adversarial:
 			losses['adv'] = self.model.discriminator_loss(z)
 		if self.add_cluster_loss:
-			losses['cluster'] = self.cluster_loss_fn(z,self.centroids)[0]
+			losses['cluster'] = (self.cluster_loss_fn(z,self.centroids)[0] if not self.use_mincut else mc1+o1)
 		loss = losses['recon']
 		for k in ['adv','kl','recon','cluster']:
 			loss+=self.lambdas[k]*losses[k]
@@ -246,11 +252,15 @@ class ModelTrainer:
 			if torch.cuda.is_available():
 				x,edge_index = x.cuda(),edge_index.cuda()
 
-			z = self.model.encode(x, edge_index)
+			if not self.use_mincut:
+				z = self.model.encode(x, edge_index)
 
-			cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
+				cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
 
-			cl,c=cl.numpy(),c.numpy()
+				cl,c=cl.numpy(),c.numpy()
+			else:
+				z,s,_,_ = self.model.encode(x, edge_index)
+				cl,c=s.argmax(1).numpy(),0.
 
 			A=self.model.decoder.forward_all(z).numpy()
 
@@ -305,7 +315,8 @@ class ModelTrainer:
 		for epoch in range(self.n_epoch):
 			if epoch >= self.epoch_cluster:
 				self.add_cluster_loss=True
-				self.centroids=self.establish_clusters(G.x, (G.train_pos_edge_index if self.task=='link_prediction' else G.edge_index))
+				if not self.use_mincut:
+					self.centroids=self.establish_clusters(G.x, (G.train_pos_edge_index if self.task=='link_prediction' else G.edge_index))
 			start_time=time.time()
 			train_loss = self.train_loop(epoch,G)
 			current_time=time.time()
@@ -318,7 +329,7 @@ class ModelTrainer:
 				if plot_training_curves:
 					self.plot_train_val_curves(plot_save_file)
 				print("Epoch {}: Train Loss {}, Val Loss {}, Train Time {}, Val Time {}".format(epoch,train_loss,val_loss,train_time,val_time))
-			if val_loss <= min(self.val_losses) and save_model:
+			if val_loss <= min(self.val_losses) and save_model and self.add_cluster_loss:
 				min_val_loss = val_loss
 				best_epoch = epoch
 				best_model = copy.deepcopy(self.model.state_dict())

@@ -4,9 +4,11 @@ from torch.nn import functional as F
 from torch_geometric.nn.models.autoencoder import GAE, VGAE, ARGA, ARGVA
 from torch_geometric.nn import GCNConv, GATConv, GraphConv, SAGEConv
 from torch_geometric.nn.inits import glorot
+from torch_geometric.nn import DenseGraphConv, dense_mincut_pool
+from torch_geometric.utils import to_dense_batch, to_dense_adj
 
 class Encoder(nn.Module):
-	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True):
+	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True, use_mincut=False, K=10):
 		super(Encoder, self).__init__()
 		self.convs=nn.ModuleList()
 		conv_layer=conv_operator(n_input,n_hidden,bias=bias)
@@ -18,6 +20,11 @@ class Encoder(nn.Module):
 			self.convs.append(conv_layer)
 		self.adversarial=adversarial
 		self.variational=variational
+		self.use_mincut=use_mincut
+		if self.use_mincut:
+			self.pool1 = nn.Linear(n_hidden, K)
+			# n_hidden=K
+
 		if self.variational:
 			self.convs=self.convs[:-1]
 			conv_mu=conv_operator(n_hidden,n_hidden,bias=bias)
@@ -26,15 +33,26 @@ class Encoder(nn.Module):
 			glorot(conv_logvar.weight)
 			self.conv_mu=conv_mu
 			self.conv_logvar=conv_logvar
+		self.n_hidden=n_hidden
 
 	def forward(self, x, edge_index):
 		z=x
 		for conv in self.convs[:-1]:
 			z=F.relu(conv(z,edge_index))
+		if not self.variational:
+			z=self.convs[-1](z,edge_index)
+		if self.use_mincut:
+			z_p, mask = to_dense_batch(z, None)
+			adj = to_dense_adj(edge_index, None)
+			s = self.pool1(z)
+			_, adj, mc1, o1 = dense_mincut_pool(z_p, adj, s, mask)
 		if self.variational:
-			return self.conv_mu(z,edge_index), self.conv_logvar(z,edge_index)
+			output=[self.conv_mu(z,edge_index), self.conv_logvar(z,edge_index)]
 		else:
-			return self.convs[-1](z,edge_index)
+			output=[z]
+		if self.use_mincut:
+			output.extend([s, mc1, o1])
+		return output
 
 class Discriminator(nn.Module):
 	def __init__(self, n_input, hidden_layers=[30,20]):
@@ -61,7 +79,9 @@ def get_model(encoder_base='GCNConv',
 				ae_type='GAE',
 				bias=True,
 				attention_heads=1,
-				decoder_type='inner'):
+				decoder_type='inner',
+				use_mincut=False,
+				K=10):
 	conv_operators=dict(GraphConv=GraphConv,
 						GCNConv=GCNConv,
 						GATConv=GATConv,
@@ -76,9 +96,9 @@ def get_model(encoder_base='GCNConv',
 	assert decoder_type in ['inner']
 	conv_operator = conv_operators[encoder_base]
 	ae_model = ae_types[ae_type]
-	encoder=Encoder(n_input, n_hidden, n_layers, conv_operator, (ae_type in ['VGAE','ARGVA']), (ae_type in ['ARGA','ARGVA']), bias)
+	encoder=Encoder(n_input, n_hidden, n_layers, conv_operator, (ae_type in ['VGAE','ARGVA']), (ae_type in ['ARGA','ARGVA']), bias, use_mincut=use_mincut, K=K)
 	model_inputs=dict(encoder=encoder)
 	if ae_type in ['ARGA','ARGVA']:
-		model_inputs['discriminator']=Discriminator(n_hidden,discriminator_layers)
+		model_inputs['discriminator']=Discriminator(encoder.n_hidden,discriminator_layers)
 	model=ae_model(**model_inputs)
 	return model

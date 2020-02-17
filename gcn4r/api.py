@@ -142,7 +142,8 @@ def train_model_(#inputs_dir,
 				val_ratio,
 				test_ratio,
 				random_seed=42,
-				task='link_prediction'
+				task='link_prediction',
+				use_mincut=False
 				):
 
 	assert custom_dataset in ['lawyer', 'physician', 'none']
@@ -196,7 +197,9 @@ def train_model_(#inputs_dir,
 					ae_type,
 					bias,
 					attention_heads,
-					decoder_type)
+					decoder_type,
+					use_mincut,
+					K)
 
 	if task in 'link_prediction':
 		G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
@@ -222,7 +225,8 @@ def train_model_(#inputs_dir,
 						K=K,
 						Niter=Niter,
 						lambdas=lambdas,
-						task=task)
+						task=task,
+						use_mincut=use_mincut)
 
 	if not predict:
 

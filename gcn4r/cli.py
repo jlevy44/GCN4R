@@ -32,7 +32,8 @@ class Commands(object):
 					custom_dataset='none',
 					val_ratio=0.05,
 					test_ratio=0.1,
-					task='clustering'
+					task='clustering',
+					use_mincut=False
 					):
 
 		train_model_(#inputs_dir,
@@ -60,7 +61,8 @@ class Commands(object):
 						custom_dataset,
 						val_ratio,
 						test_ratio,
-						task=task
+						task=task,
+						use_mincut=use_mincut
 						)
 
 	def visualize(self,

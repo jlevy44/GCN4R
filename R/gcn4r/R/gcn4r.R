@@ -75,7 +75,8 @@ train_model<- function (learning_rate=1e-4,
                         val_ratio=0.05,
                         test_ratio=0.1,
                         random_seed=42L,
-                        task='clustering') {
+                        task='clustering',
+                        use_mincut=F) {
   results<-GCN4R$api$train_model_(learning_rate,
                          n_epochs,
                          encoder_base,
@@ -101,7 +102,8 @@ train_model<- function (learning_rate=1e-4,
                          val_ratio,
                          test_ratio,
                          random_seed,
-                         task)
+                         task,
+                         use_mincut)
   reticulate::py_run_string("import sys; sys.stdout.flush()")
   if (predict) {
     return(results)
