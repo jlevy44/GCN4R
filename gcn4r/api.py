@@ -116,7 +116,7 @@ class PlotlyPlot:
 		py.plot(fig, filename=output_fname, auto_open=False)
 
 
-def train_model_(inputs_dir,
+def train_model_(#inputs_dir,
 				learning_rate,
 				n_epochs,
 				encoder_base,
@@ -160,12 +160,16 @@ def train_model_(inputs_dir,
 			sparse_matrix=sps.csr_matrix(pd.read_csv(sparse_matrix).values)
 		else:
 			sparse_matrix=sps.load_npz(sparse_matrix)
+	elif not sps.issparse(sparse_matrix):
+		sparse_matrix=sps.csr_matrix(sparse_matrix)
 
 	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix) and feature_matrix.split('.')[-1] in ['npy','csv']:
 		if feature_matrix.endswith('.csv'):
 			X=pd.read_csv(feature_matrix).values.astype(float)
 		else:
 			X=np.load(feature_matrix,allow_pickle=True).astype(float)
+	elif isinstance(feature_matrix,type(None)):
+		X=np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]
 	else:
 		X=feature_matrix
 

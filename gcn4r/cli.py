@@ -7,7 +7,7 @@ class Commands(object):
 		pass
 	# TODO: ADD https://danielegrattarola.github.io/posts/2019-07-25/mincut-pooling.html
 	def train_model(self,
-					inputs_dir='inputs',
+					# inputs_dir='inputs',
 					learning_rate=1e-4,
 					n_epochs=300,
 					encoder_base='GCNConv',
@@ -35,7 +35,7 @@ class Commands(object):
 					task='clustering'
 					):
 
-		train_model_(inputs_dir,
+		train_model_(#inputs_dir,
 						learning_rate,
 						n_epochs,
 						encoder_base,

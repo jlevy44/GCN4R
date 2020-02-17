@@ -50,8 +50,7 @@ import_gcn4r <- function() {
   GCN4R<-reticulate:::import('gcn4r')
 }
 
-train_model<- function (inputs_dir='inputs',
-                        learning_rate=1e-4,
+train_model<- function (learning_rate=1e-4,
                         n_epochs=300L,
                         encoder_base='GCNConv',
                         n_hidden=30L,
@@ -77,8 +76,7 @@ train_model<- function (inputs_dir='inputs',
                         test_ratio=0.1,
                         random_seed=42L,
                         task='clustering') {
-  results<-GCN4R$api$train_model_(inputs_dir,
-                         learning_rate,
+  results<-GCN4R$api$train_model_(learning_rate,
                          n_epochs,
                          encoder_base,
                          n_hidden,
@@ -182,11 +180,14 @@ plot.net <- function(net,group) {
 
 sim.and.plot <- function(nv=c(32, 32, 32, 32),
                          p.in=c(0.452, 0.452, 0.452, 0.452),
-                         p.out=0.021, p.del=0) {
+                         p.out=0.021, p.del=0,
+                         seed=42L) {
+  set.seed(seed)
   net.simu <- network.simu(nv=nv, p.in=p.in, p.out=p.out, p.del=p.del)
   net <- net.simu$net
   group <- net.simu$group
   plot.net(net,group)
+  return(net.simu)
 
 }
 
@@ -224,6 +225,29 @@ run.tests <- function(K=3L) {
   plot.net(net,coms)
 
   return(results)
+
+}
+
+run.tests2 <- function(K=4L) {
+  GCN4R<-import_gcn4r()
+  # run GCN model
+  net<-sim.and.plot()
+  G<-as_adjacency_matrix(net$net,sparse=F)
+  train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
+  results<-train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
+
+  # create synthetic graph
+  A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
+  A<-get.edgelist(graph.adjacency(A.adj))
+  X<-setDT(as.data.frame(results$X), keep.rownames = TRUE)[]
+  net<-to.igraph(A,X)
+  plot.net(net,results$cl)
+
+  # create real graph, plot found clusters
+  G<-matrix(as.vector(results$G$edge_index$numpy()), nc = 2, byrow = TRUE)+1
+  #G<-as.matrix(data.frame(G[c(T,F)],G[c(F,T)]))
+  net<-to.igraph(G,X)
+  plot.net(net,results$cl)
 
 }
 
