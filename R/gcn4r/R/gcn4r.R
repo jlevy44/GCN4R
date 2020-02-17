@@ -201,11 +201,11 @@ to.networkx <- function(A) {
   return(GCN4R$api$nx$from_edgelist(A))
 }
 
-run.tests <- function(K=3L) {
+run.tests <- function(K=3L, use_mincut=F) {
   GCN4R<-import_gcn4r()
   # run GCN model
-  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
-  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
+  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut)
+  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T, use_mincut=use_mincut)
 
   # create synthetic graph
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
@@ -230,13 +230,13 @@ run.tests <- function(K=3L) {
 
 }
 
-run.tests2 <- function(K=4L) {
+run.tests2 <- function(K=4L, use_mincut=F) {
   GCN4R<-import_gcn4r()
   # run GCN model
   net<-sim.and.plot()
   G<-as_adjacency_matrix(net$net,sparse=F)
-  train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering')
-  results<-train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T)
+  train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',use_mincut=use_mincut)
+  results<-train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T,use_mincut=use_mincut)
 
   # create synthetic graph
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
@@ -250,6 +250,12 @@ run.tests2 <- function(K=4L) {
   #G<-as.matrix(data.frame(G[c(T,F)],G[c(F,T)]))
   net<-to.igraph(G,X)
   plot.net(net,results$cl)
+
+  # run louvain, plot found communities
+  coms<-GCN4R$api$cdlib$algorithms$louvain(to.networkx(G))
+  coms.dict<-coms$to_node_community_map()
+  coms<-unlist(lapply(1:nrow(A.adj),function(i){coms.dict[i]}))
+  plot.net(net,coms)
 
 }
 
