@@ -143,7 +143,8 @@ def train_model_(#inputs_dir,
 				test_ratio,
 				random_seed=42,
 				task='link_prediction',
-				use_mincut=False
+				use_mincut=False,
+				initialize_spectral=True
 				):
 
 	assert custom_dataset in ['lawyer', 'physician', 'none']
@@ -164,13 +165,19 @@ def train_model_(#inputs_dir,
 	elif not sps.issparse(sparse_matrix):
 		sparse_matrix=sps.csr_matrix(sparse_matrix)
 
+	print(sparse_matrix.shape)
+
 	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix) and feature_matrix.split('.')[-1] in ['npy','csv']:
 		if feature_matrix.endswith('.csv'):
 			X=pd.read_csv(feature_matrix).values.astype(float)
 		else:
 			X=np.load(feature_matrix,allow_pickle=True).astype(float)
 	elif isinstance(feature_matrix,type(None)):
-		X=np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]#np.eye(sparse_matrix.shape[0])*sparse_matrix.sum(axis=1)#modify#np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]
+		if initialize_spectral:
+			from sklearn.manifold import SpectralEmbedding
+			X=SpectralEmbedding(n_components=3,affinity="precomputed",random_state=42).fit_transform(sparse_matrix)
+		else:
+			X=np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]#np.eye(sparse_matrix.shape[0])*sparse_matrix.sum(axis=1)#modify#np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]
 	else:
 		X=feature_matrix
 

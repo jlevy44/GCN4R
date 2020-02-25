@@ -48,7 +48,7 @@ class ModelTrainer:
 						lambdas=dict(),
 						task='link_prediction',
 						use_mincut=False,
-						print_clusters=False):
+						print_clusters=True):
 
 		self.model = model
 		optimizers = {'adam':torch.optim.Adam, 'sgd':torch.optim.SGD}
@@ -80,7 +80,7 @@ class ModelTrainer:
 		z=self.model.encode(x, edge_index)[0]
 		cl,centroids=KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)
 		if self.print_clusters:
-			print(' '.join(np.bincount(cl)))
+			print(' '.join(np.bincount(cl.numpy()).astype(str)))
 		self.centroids=torch.tensor(centroids,dtype=torch.float)
 		if torch.cuda.is_available():
 			self.centroids=self.centroids.cuda()
@@ -92,7 +92,7 @@ class ModelTrainer:
 		else:
 			z, s, mc1, o1 = self.model.encode(x, edge_index)
 			if self.print_clusters:
-				print(' '.join(np.bincount(s.argmax(1))))
+				print(' '.join(np.bincount(s.argmax(1).numpy()).astype(str)))
 		# print(z.shape)
 		if not isinstance(val_edge_index, type(None)):
 			edge_index=val_edge_index
