@@ -170,7 +170,7 @@ def train_model_(#inputs_dir,
 		else:
 			X=np.load(feature_matrix,allow_pickle=True).astype(float)
 	elif isinstance(feature_matrix,type(None)):
-		X=np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]
+		X=np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]#np.eye(sparse_matrix.shape[0])*sparse_matrix.sum(axis=1)#modify#np.ones(sparse_matrix.shape[0],dtype=float)[:,np.newaxis]
 	else:
 		X=feature_matrix
 

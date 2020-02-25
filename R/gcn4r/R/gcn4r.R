@@ -55,7 +55,7 @@ train_model<- function (learning_rate=1e-4,
                         encoder_base='GCNConv',
                         n_hidden=30L,
                         n_layers=2L,
-                        discriminator_layers=c(20,20),
+                        discriminator_layers=c(20L,20L),
                         ae_type='GAE',
                         bias=T,
                         attention_heads=1L,
@@ -201,11 +201,11 @@ to.networkx <- function(A) {
   return(GCN4R$api$nx$from_edgelist(A))
 }
 
-run.tests <- function(K=3L, use_mincut=F) {
+run.tests <- function(K=3L, use_mincut=T) {
   GCN4R<-import_gcn4r()
   # run GCN model
-  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut)
-  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T, use_mincut=use_mincut)
+  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-2, epoch_cluster=200L, n_epoch=800L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut)
+  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-2, epoch_cluster=200L, n_epoch=800L, K=3L, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut, predict=T)
 
   # create synthetic graph
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
@@ -230,14 +230,14 @@ run.tests <- function(K=3L, use_mincut=F) {
 
 }
 
-run.tests2 <- function(K=4L, use_mincut=F) {
+run.tests2 <- function(K=4L, use_mincut=T) {
   GCN4R<-import_gcn4r()
   # run GCN model
   net<-sim.and.plot()
   G<-as_adjacency_matrix(net$net,sparse=F)
-  train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',use_mincut=use_mincut)
-  results<-train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T,use_mincut=use_mincut)
-
+  train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-3, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',use_mincut=use_mincut, n_epochs=800L)
+  results<-train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-2, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',predict=T,use_mincut=use_mincut)
+  # results=train_model(custom_dataset = 'none', sparse_matrix = G, feature_matrix=NULL, random_seed = 42L, lambda_adv = 0L, lambda_cluster = 1e-3, epoch_cluster=150L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering',use_mincut=use_mincut, n_epochs=800L,predict=T)
   # create synthetic graph
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
   A<-get.edgelist(graph.adjacency(A.adj))

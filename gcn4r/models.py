@@ -1,4 +1,4 @@
-import torch
+import torch, numpy as np
 import torch.nn as nn
 from torch.nn import functional as F
 from torch_geometric.nn.models.autoencoder import GAE, VGAE, ARGA, ARGVA
@@ -45,6 +45,8 @@ class Encoder(nn.Module):
 			z_p, mask = to_dense_batch(z, None)
 			adj = to_dense_adj(edge_index, None)
 			s = self.pool1(z)
+			# print(s.shape)
+			# print(np.bincount(s.detach().argmax(1).numpy().flatten()))
 			_, adj, mc1, o1 = dense_mincut_pool(z_p, adj, s, mask)
 		if self.variational:
 			output=[self.conv_mu(z,edge_index), self.conv_logvar(z,edge_index)]

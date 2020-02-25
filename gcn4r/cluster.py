@@ -2,13 +2,14 @@ import torch
 import torch.nn as nn
 from torch_cluster.nearest import nearest
 import time
+import pysnooper
+
 
 def KMeans(x, K=10, Niter=10, verbose=True):
 	# https://github.com/jeanfeydy/geomloss/blob/60785fdbb6e9e8f2689d881e3fc027887a2ac4e4/geomloss/examples/sinkhorn_multiscale/plot_optimal_transport_cluster.py
 	N, D = x.shape
 	start = time.time()
 	perm = torch.randperm(N)
-	print(K)
 	idx = perm[:K]
 	c = x[idx, :].clone()
 
@@ -26,6 +27,7 @@ def sq_loss_clusters(encode_output, centroids):
 	assert encode_output.size(1) == centroids.size(1), "Dimension mismatch"
 	return ((encode_output[:, None]-centroids[None])**2).sum(2).min(1)[0].mean()
 
+# @pysnooper.snoop()
 def clustering_loss(Z,K=10,Niter=10,centroids=None):
 	Z2=Z.detach()
 	if isinstance(centroids,type(None)):

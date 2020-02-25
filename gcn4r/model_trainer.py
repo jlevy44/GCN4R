@@ -10,6 +10,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
+import pysnooper
 sns.set(style='white')
 
 
@@ -46,7 +47,8 @@ class ModelTrainer:
 						Niter=10,
 						lambdas=dict(),
 						task='link_prediction',
-						use_mincut=False):
+						use_mincut=False,
+						print_clusters=False):
 
 		self.model = model
 		optimizers = {'adam':torch.optim.Adam, 'sgd':torch.optim.SGD}
@@ -72,19 +74,25 @@ class ModelTrainer:
 		self.lambdas=lambdas
 		self.task = task
 		self.use_mincut=use_mincut
+		self.print_clusters=print_clusters
 
 	def establish_clusters(self, x, edge_index):
-		z=self.model.encode(x, edge_index)
-		self.centroids=torch.tensor(KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)[1],dtype=torch.float)
+		z=self.model.encode(x, edge_index)[0]
+		cl,centroids=KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)
+		if self.print_clusters:
+			print(' '.join(np.bincount(cl)))
+		self.centroids=torch.tensor(centroids,dtype=torch.float)
 		if torch.cuda.is_available():
 			self.centroids=self.centroids.cuda()
 		return self.centroids
 
 	def calc_loss(self, x, edge_index, val_edge_index=None):
 		if not self.use_mincut:
-			z = self.model.encode(x, edge_index)
+			z = self.model.encode(x, edge_index)[0]
 		else:
 			z, s, mc1, o1 = self.model.encode(x, edge_index)
+			if self.print_clusters:
+				print(' '.join(np.bincount(s.argmax(1))))
 		# print(z.shape)
 		if not isinstance(val_edge_index, type(None)):
 			edge_index=val_edge_index
@@ -253,7 +261,7 @@ class ModelTrainer:
 				x,edge_index = x.cuda(),edge_index.cuda()
 
 			if not self.use_mincut:
-				z = self.model.encode(x, edge_index)
+				z = self.model.encode(x, edge_index)[0]
 
 				cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
 
