@@ -229,7 +229,7 @@ run.tests <- function(K=4L, use_mincut=T) {
   return(results)
 
 }
-
+# add soft cluster assignments from mincut
 run.tests2 <- function(K=4L, use_mincut=T) {
   GCN4R<-import_gcn4r()
   # run GCN model
