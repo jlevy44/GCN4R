@@ -115,38 +115,26 @@ class PlotlyPlot:
 			fig = go.Figure(data=self.plots)
 		py.plot(fig, filename=output_fname, auto_open=False)
 
-
-def train_model_(#inputs_dir,
-				learning_rate,
-				n_epochs,
-				encoder_base,
-				n_hidden,
-				n_layers,
-				discriminator_layers,
-				ae_type,
-				bias,
-				attention_heads,
-				decoder_type,
-				model_save_loc,
-				predictions_save_path,
-				predict,
-				lambda_kl,
-				lambda_adv,
-				lambda_cluster,
-				epoch_cluster,
-				K,
-				Niter,
-				sparse_matrix,
-				feature_matrix,
-				custom_dataset,
-				val_ratio,
-				test_ratio,
-				random_seed=42,
-				task='link_prediction',
-				use_mincut=False,
-				initialize_spectral=True
-				):
-
+def get_data_model(custom_dataset,
+					task,
+					random_seed,
+					sparse_matrix,
+					feature_matrix,
+					initialize_spectral,
+					encoder_base,
+					n_hidden,
+					n_layers,
+					discriminator_layers,
+					ae_type,
+					bias,
+					attention_heads,
+					decoder_type,
+					use_mincut,
+					K,
+					val_ratio,
+					test_ratio,
+					**kwargs
+					):
 	assert custom_dataset in ['lawyer', 'physician', 'none']
 	assert task in ['link_prediction', 'generation', 'clustering', 'embedding']
 	torch.manual_seed(random_seed)
@@ -191,11 +179,6 @@ def train_model_(#inputs_dir,
 
 	G.num_nodes = X.shape[0]
 
-	lambdas=dict(cluster=lambda_cluster,
-				adv=lambda_adv,
-				kl=lambda_kl,
-				recon=1.)
-
 	model=get_model(encoder_base,
 					n_input,
 					n_hidden,
@@ -213,6 +196,38 @@ def train_model_(#inputs_dir,
 
 	if torch.cuda.is_available():
 		model=model.cuda()
+	return G,model,X,edge_index,edge_attr
+
+def train_model_(#inputs_dir,
+				learning_rate,
+				n_epochs,
+				encoder_base,
+				n_hidden,
+				n_layers,
+				discriminator_layers,
+				ae_type,
+				bias,
+				attention_heads,
+				decoder_type,
+				model_save_loc,
+				predictions_save_path,
+				predict,
+				lambda_kl,
+				lambda_adv,
+				lambda_cluster,
+				epoch_cluster,
+				K,
+				Niter,
+				sparse_matrix,
+				feature_matrix,
+				custom_dataset,
+				val_ratio,
+				test_ratio,
+				random_seed=42,
+				task='link_prediction',
+				use_mincut=False,
+				initialize_spectral=True
+				):
 
 	optimizer_opts=dict(name='adam',
 						lr=learning_rate,
@@ -223,6 +238,31 @@ def train_model_(#inputs_dir,
 						T_max=10,
 						eta_min=5e-8,
 						T_mult=2)
+
+	lambdas=dict(cluster=lambda_cluster,
+				adv=lambda_adv,
+				kl=lambda_kl,
+				recon=1.)
+
+	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
+													task,
+													random_seed,
+													sparse_matrix,
+													feature_matrix,
+													initialize_spectral,
+													encoder_base,
+													n_hidden,
+													n_layers,
+													discriminator_layers,
+													ae_type,
+													bias,
+													attention_heads,
+													decoder_type,
+													use_mincut,
+													K,
+													val_ratio,
+													test_ratio
+													)
 
 	trainer=ModelTrainer(model,
 						n_epochs,
@@ -254,6 +294,63 @@ def train_model_(#inputs_dir,
 		torch.save(output,predictions_save_path)
 
 		return output
+
+def interpret_model(custom_dataset,
+					task,
+					random_seed,
+					sparse_matrix,
+					feature_matrix,
+					initialize_spectral,
+					encoder_base,
+					n_hidden,
+					n_layers,
+					discriminator_layers,
+					ae_type,
+					bias,
+					attention_heads,
+					decoder_type,
+					use_mincut,
+					K,
+					val_ratio,
+					test_ratio,
+					model_save_loc,
+					mode='captum',
+					method='integrated_gradients'):
+	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
+	assert mode in ['captum','attention']
+	assert method in ['integrated_gradients']
+	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
+													task,
+													random_seed,
+													sparse_matrix,
+													feature_matrix,
+													initialize_spectral,
+													encoder_base,
+													n_hidden,
+													n_layers,
+													discriminator_layers,
+													ae_type,
+													bias,
+													attention_heads,
+													decoder_type,
+													use_mincut,
+													K,
+													val_ratio,
+													test_ratio
+													)
+	if mode=='attention':
+		assert encoder_base=='GATConv'
+	model.load_state_dict(torch.load(model_save_loc))
+	attr_results={}
+
+	if mode=='captum':
+		attr_results['cluster_assignments']=model.encode(G.x, G.edge_index)[1]
+		for i in range(K):
+			attr_results[i]=captum_interpret_graph(G, model, use_mincut, target=i, method=method)
+
+	else:
+		raise NotImplementedError
+	return attr_results
 
 def visualize_(predictions_save_path,
 				use_predicted_graph,
