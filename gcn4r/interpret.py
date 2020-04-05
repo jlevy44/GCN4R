@@ -14,5 +14,11 @@ def captum_interpret_graph(G, model, use_mincut, target=0, method='integrated_gr
     attr = ig.attribute(x.unsqueeze(0), additional_forward_args=(edge_index.unsqueeze(0)), target=target)
     return attr
 
-def return_attention_scores():
-    pass
+def return_attention_scores(G, model):
+    x,edge_index=G.x,G.edge_index
+    outputs=model.encode(x,edge_index)
+    attention_scores=[]
+    for conv in model.encoder.convs:
+        conv.attention_coefs['edge_index']=edge_index
+        attention_scores.append(conv.attention_coefs)
+    return attention_scores

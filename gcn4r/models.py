@@ -6,6 +6,36 @@ from torch_geometric.nn import GCNConv, GATConv, GraphConv, SAGEConv
 from torch_geometric.nn.inits import glorot
 from torch_geometric.nn import DenseGraphConv, dense_mincut_pool
 from torch_geometric.utils import to_dense_batch, to_dense_adj
+from collections import defaultdict
+import copy
+from torch_geometric.utils import softmax
+
+class GATConvInterpret(GATConv):
+	def __init__(self, in_channels, out_channels, heads=1, concat=True,
+				 negative_slope=0.2, dropout=0, bias=True, **kwarg):
+		super(GATConvInterpret,self).__init__(in_channels, out_channels, heads, concat,
+				 negative_slope, dropout, bias, **kwarg)
+		self.attention_coefs=dict()#defaultdict(list)
+
+	def message(self, edge_index_i, x_i, x_j, size_i):
+		# Compute attention coefficients.
+		x_j = x_j.view(-1, self.heads, self.out_channels)
+		if x_i is None:
+			alpha = (x_j * self.att[:, :, self.out_channels:]).sum(dim=-1)
+		else:
+			x_i = x_i.view(-1, self.heads, self.out_channels)
+			alpha = (torch.cat([x_i, x_j], dim=-1) * self.att).sum(dim=-1)
+
+		alpha = F.leaky_relu(alpha, self.negative_slope)
+		alpha = softmax(alpha, edge_index_i, size_i)
+		print(alpha.shape)
+		# self.attention_coefs['edge_index_i']=edge_index_i
+		self.attention_coefs['coef']=alpha
+
+		# Sample attention coefficients stochastically.
+		alpha = F.dropout(alpha, p=self.dropout, training=self.training)
+
+		return x_j * alpha.view(-1, self.heads, 1)
 
 class Encoder(nn.Module):
 	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True, use_mincut=False, K=10):
@@ -83,16 +113,18 @@ def get_model(encoder_base='GCNConv',
 				attention_heads=1,
 				decoder_type='inner',
 				use_mincut=False,
-				K=10):
+				K=10,
+				interpret=False):
 	conv_operators=dict(GraphConv=GraphConv,
 						GCNConv=GCNConv,
 						GATConv=GATConv,
-						SAGEConv=SAGEConv)
+						SAGEConv=SAGEConv,
+						GATConvInterpret=GATConvInterpret)
 	ae_types=dict(GAE=GAE,
 					VGAE=VGAE,
 					ARGA=ARGA,
 					ARGVA=ARGVA)
-	assert encoder_base in list(conv_operators.keys())
+	assert encoder_base in (list(conv_operators.keys())+([] if not interpret else ['GATConvInterpret']))
 	assert attention_heads == 1
 	assert ae_type in list(ae_types.keys())
 	assert decoder_type in ['inner']

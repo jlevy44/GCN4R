@@ -133,7 +133,8 @@ def get_data_model(custom_dataset,
 					K,
 					val_ratio,
 					test_ratio,
-					**kwargs
+					interpret=False
+					**kwargs,
 					):
 	assert custom_dataset in ['lawyer', 'physician', 'none']
 	assert task in ['link_prediction', 'generation', 'clustering', 'embedding']
@@ -189,7 +190,8 @@ def get_data_model(custom_dataset,
 					attention_heads,
 					decoder_type,
 					use_mincut,
-					K)
+					K,
+					interpret)
 
 	if task in 'link_prediction':
 		G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
@@ -319,6 +321,9 @@ def interpret_model(custom_dataset,
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
 	assert mode in ['captum','attention']
 	assert method in ['integrated_gradients']
+	if mode=='attention':
+		assert encoder_base=='GATConv'
+		encoder_base='GATConvInterpret'
 	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
 													task,
 													random_seed,
@@ -338,18 +343,16 @@ def interpret_model(custom_dataset,
 													val_ratio,
 													test_ratio
 													)
-	if mode=='attention':
-		assert encoder_base=='GATConv'
 	model.load_state_dict(torch.load(model_save_loc))
+	model.train(False)
 	attr_results={}
 
 	if mode=='captum':
 		attr_results['cluster_assignments']=model.encode(G.x, G.edge_index)[1]
 		for i in range(K):
 			attr_results[i]=captum_interpret_graph(G, model, use_mincut, target=i, method=method)
-
 	else:
-		raise NotImplementedError
+		attr_results=return_attention_scores(G, model)
 	return attr_results
 
 def visualize_(predictions_save_path,
