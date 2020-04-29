@@ -33,7 +33,8 @@ class Commands(object):
 					val_ratio=0.05,
 					test_ratio=0.1,
 					task='clustering',
-					use_mincut=False
+					use_mincut=False,
+					kmeans_use_probs=False
 					):
 
 		train_model_(#inputs_dir,
@@ -62,7 +63,8 @@ class Commands(object):
 						val_ratio,
 						test_ratio,
 						task=task,
-						use_mincut=use_mincut
+						use_mincut=use_mincut,
+						kmeans_use_probs=kmeans_use_probs
 						)
 
 	def visualize(self,

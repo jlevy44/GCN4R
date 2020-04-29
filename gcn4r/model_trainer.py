@@ -48,9 +48,11 @@ class ModelTrainer:
 						lambdas=dict(),
 						task='link_prediction',
 						use_mincut=False,
-						print_clusters=True):
+						print_clusters=True,
+						kmeans_use_probs=False):
 
 		self.model = model
+		self.kmeans_use_probs=kmeans_use_probs
 		optimizers = {'adam':torch.optim.Adam, 'sgd':torch.optim.SGD}
 		loss_functions = {'bce':nn.BCEWithLogitsLoss(reduction=reduction), 'ce':nn.CrossEntropyLoss(reduction=reduction), 'mse':nn.MSELoss(reduction=reduction), 'nll':nn.NLLLoss(reduction=reduction)}
 		if 'name' not in list(optimizer_opts.keys()):
@@ -70,7 +72,7 @@ class ModelTrainer:
 		self.add_cluster_loss=False
 		self.K=K
 		self.Niter=Niter
-		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter)
+		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter,self.kmeans_use_probs)
 		self.lambdas=lambdas
 		self.task = task
 		self.use_mincut=use_mincut
@@ -261,13 +263,22 @@ class ModelTrainer:
 				x,edge_index = x.cuda(),edge_index.cuda()
 
 			if not self.use_mincut:
-				z = self.model.encode(x, edge_index)[0]
-
+				self.model.encoder.toggle_kmeans()
+				z = self.model.encode(x, edge_index)#[0]
+				self.model.encoder.toggle_kmeans()
+				if not self.model.encoder.variational:
+					z,s=z
+				else:
+					z,_,s=z
 				cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
 
 				cl,c=cl.numpy(),c.numpy()
 			else:
-				z,s,_,_ = self.model.encode(x, edge_index)
+				z = self.model.encode(x, edge_index)
+				if not self.model.encoder.variational:
+					z,s,_,_=z
+				else:
+					z,_,s,_,_=z
 				cl,c=s.argmax(1).numpy(),0.
 
 			A=self.model.decoder.forward_all(z).numpy()
@@ -283,7 +294,7 @@ class ModelTrainer:
 
 			z=z.numpy()
 
-		return G,z,cl,c,A,threshold
+		return G,z,cl,c,A,threshold,s
 
 	def fit(self, G, verbose=False, print_every=10, save_model=True, plot_training_curves=False, plot_save_file=None, print_val_confusion=True, save_val_predictions=True):
 		"""Fits the segmentation or classification model to the patches, saving the model with the lowest validation score.
@@ -339,6 +350,7 @@ class ModelTrainer:
 					self.plot_train_val_curves(plot_save_file)
 				print("Epoch {}: Train Loss {}, Val Loss {}, Train Time {}, Val Time {}".format(epoch,train_loss,val_loss,train_time,val_time))
 			if self.add_cluster_loss and val_loss <= min(self.val_losses) and save_model:
+				print("New Best Model at Epoch {}".format(epoch))
 				min_val_loss = val_loss
 				best_epoch = epoch
 				best_model = copy.deepcopy(self.model.state_dict())

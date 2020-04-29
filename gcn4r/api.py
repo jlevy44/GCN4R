@@ -115,6 +115,63 @@ class PlotlyPlot:
 			fig = go.Figure(data=self.plots)
 		py.plot(fig, filename=output_fname, auto_open=False)
 
+def print_parameters(learning_rate,
+		n_epochs,
+		encoder_base,
+		n_hidden,
+		n_layers,
+		discriminator_layers,
+		ae_type,
+		bias,
+		attention_heads,
+		decoder_type,
+		model_save_loc,
+		predictions_save_path,
+		predict,
+		lambda_kl,
+		lambda_adv,
+		lambda_cluster,
+		epoch_cluster,
+		K,
+		Niter,
+		sparse_matrix,
+		feature_matrix,
+		custom_dataset,
+		val_ratio,
+		test_ratio,
+		random_seed,
+		task,
+		use_mincut,
+		initialize_spectral):
+	print(dict(learning_rate=learning_rate,
+			n_epochs=n_epochs,
+			encoder_base=encoder_base,
+			n_hidden=n_hidden,
+			n_layers=n_layers,
+			discriminator_layers=discriminator_layers,
+			ae_type=ae_type,
+			bias=bias,
+			attention_heads=attention_heads,
+			decoder_type=decoder_type,
+			model_save_loc=model_save_loc,
+			predictions_save_path=predictions_save_path,
+			predict=predict,
+			lambda_kl=lambda_kl,
+			lambda_adv=lambda_adv,
+			lambda_cluster=lambda_cluster,
+			epoch_cluster=epoch_cluster,
+			K=K,
+			Niter=Niter,
+			sparse_matrix=sparse_matrix,
+			feature_matrix=feature_matrix,
+			custom_dataset=custom_dataset,
+			val_ratio=val_ratio,
+			test_ratio=test_ratio,
+			random_seed=random_seed,
+			task=task,
+			use_mincut=use_mincut,
+			initialize_spectral=initialize_spectral))
+
 def get_data_model(custom_dataset,
 					task,
 					random_seed,
@@ -131,10 +188,10 @@ def get_data_model(custom_dataset,
 					decoder_type,
 					use_mincut,
 					K,
+					Niter,
 					val_ratio,
 					test_ratio,
 					interpret=False
-					**kwargs,
 					):
 	assert custom_dataset in ['lawyer', 'physician', 'none']
 	assert task in ['link_prediction', 'generation', 'clustering', 'embedding']
@@ -191,6 +248,7 @@ def get_data_model(custom_dataset,
 					decoder_type,
 					use_mincut,
 					K,
+					Niter,
 					interpret)
 
 	if task in 'link_prediction':
@@ -228,7 +286,8 @@ def train_model_(#inputs_dir,
 				random_seed=42,
 				task='link_prediction',
 				use_mincut=False,
-				initialize_spectral=True
+				initialize_spectral=True,
+				kmeans_use_probs=False
 				):
 
 	optimizer_opts=dict(name='adam',
@@ -262,6 +321,7 @@ def train_model_(#inputs_dir,
 													decoder_type,
 													use_mincut,
 													K,
+													Niter,
 													val_ratio,
 													test_ratio
 													)
@@ -275,7 +335,8 @@ def train_model_(#inputs_dir,
 						Niter=Niter,
 						lambdas=lambdas,
 						task=task,
-						use_mincut=use_mincut)
+						use_mincut=use_mincut,
+						kmeans_use_probs=kmeans_use_probs)
 
 	if not predict:
 
@@ -287,11 +348,11 @@ def train_model_(#inputs_dir,
 
 		trainer.model.load_state_dict(torch.load(model_save_loc))
 
-		_,z,cl,c,A,threshold=trainer.predict(G)
+		_,z,cl,c,A,threshold,s=trainer.predict(G)
 
 		G=Data(X,edge_index,edge_attr)
 
-		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold)
+		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold,s=s)
 
 		torch.save(output,predictions_save_path)
 
@@ -313,6 +374,7 @@ def interpret_model(custom_dataset,
 					decoder_type,
 					use_mincut,
 					K,
+					Niter,
 					val_ratio,
 					test_ratio,
 					model_save_loc,
@@ -320,7 +382,6 @@ def interpret_model(custom_dataset,
 					method='integrated_gradients'):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
 	assert mode in ['captum','attention']
-	assert method in ['integrated_gradients']
 	if mode=='attention':
 		assert encoder_base=='GATConv'
 		encoder_base='GATConvInterpret'
@@ -340,13 +401,14 @@ def interpret_model(custom_dataset,
 													decoder_type,
 													use_mincut,
 													K,
+													Niter,
 													val_ratio,
-													test_ratio
+													test_ratio,
 													)
 	model.load_state_dict(torch.load(model_save_loc))
 	model.train(False)
+	model.encoder.toggle_kmeans()
 	attr_results={}
-
 	if mode=='captum':
 		attr_results['cluster_assignments']=model.encode(G.x, G.edge_index)[1]
 		for i in range(K):

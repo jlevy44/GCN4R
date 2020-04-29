@@ -5,7 +5,7 @@ library(wfg)
 library(igraph)
 library(data.table)
 
-
+####################### IMPORT #######################
 
 #' Install GCN4R Python Package.
 #'
@@ -49,6 +49,35 @@ source.python <- function(python.exec='/anaconda2/envs/gcn4r/bin/python'){
 import_gcn4r <- function() {
   GCN4R<-reticulate:::import('gcn4r')
 }
+
+####################### LOAD DATA #######################
+
+generate.net.list <- function (adj.csv,cov.csv) {
+  A<-read.csv(adj.csv)[,-1]
+  X<-read.csv(cov.csv)
+  return(list(A=A,X=X))
+}
+
+####################### VISUALIZE DATA #######################
+
+to.igraph <- function(A,X){
+  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
+}
+
+plot.net <- function(net,group) {
+  V(net)$size <- 7
+  V(net)$color <- group
+  plot(net, vertex.label='')
+}to.igraph <- function(A,X){
+  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
+}
+
+visualize.net<- function(net.list, covar=NULL) {
+  net<-to.igraph(net.list$A,net.list$X)
+  plot.net(net,covar)
+}
+
+####################### SET PARAMETERS #######################
 
 train_model<- function (learning_rate=1e-4,
                         n_epochs=300L,
@@ -103,7 +132,8 @@ train_model<- function (learning_rate=1e-4,
                          test_ratio,
                          random_seed,
                          task,
-                         use_mincut)
+                         use_mincut,
+                         initialize_spectral = F)
   reticulate::py_run_string("import sys; sys.stdout.flush()")
   if (predict) {
     return(results)
@@ -174,11 +204,6 @@ net2mat <- function (G) {
 }
 # add ergm, ergmm, mple
 
-plot.net <- function(net,group) {
-  V(net)$size <- 7
-  V(net)$color <- group
-  plot(net, vertex.label='')
-}
 
 sim.and.plot <- function(nv=c(32, 32, 32, 32),
                          p.in=c(0.452, 0.452, 0.452, 0.452),
@@ -193,9 +218,10 @@ sim.and.plot <- function(nv=c(32, 32, 32, 32),
 
 }
 
-to.igraph <- function(A,X){
-  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
-}
+
+
+
+
 
 to.networkx <- function(A) {
   return(GCN4R$api$nx$from_edgelist(A))
@@ -204,8 +230,8 @@ to.networkx <- function(A) {
 run.tests <- function(K=4L, use_mincut=T) {
   GCN4R<-import_gcn4r()
   # run GCN model
-  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_cluster = 1., ae_type="ARGA", lambda_adv = 1e-3, epoch_cluster=200L, n_epoch=800L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut)
-  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_cluster = 1e-2, ae_type="ARGA", lambda_adv = 1e-3, epoch_cluster=200L, n_epoch=800L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut, predict=T)
+  train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_cluster = 1., ae_type="ARGA", lambda_adv = 1e-3, epoch_cluster=200L, n_epoch=800L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut, encoder_base="GATConv")
+  results<-train_model(custom_dataset = 'lawyer', random_seed = 42L, lambda_cluster = 1e-2, ae_type="ARGA", lambda_adv = 1e-3, epoch_cluster=200L, n_epoch=800L, K=K, lambda_kl=0L, learning_rate = 1e-3, task='clustering', use_mincut=use_mincut, predict=T, encoder_base = "GATConv")
 
   # create synthetic graph
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))

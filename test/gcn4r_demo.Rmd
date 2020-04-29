@@ -1,0 +1,77 @@
+---
+title: "GCN4R_demo"
+author: "Joshua Levy"
+date: "4/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gcn4r)
+library(reticulate)
+```
+
+# Import Library, link anaconda to R studio
+```{r}
+reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
+reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
+GCN4R<-import_gcn4r()
+GCN4R$api
+```
+
+
+# Load data
+```{r}
+net.list<-generate.net.list("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv") 
+```
+
+# Visualize data
+
+```{r}
+visualize.net(net.list)
+```
+
+
+# Load parameters
+
+# Create design matrix
+
+# Fit cluster, embedding, classification, link prediction model
+```{r}
+A
+K=4L
+use_mincut=F# turn kmeans into nn layer
+train_model(custom_dataset = 'none', 
+            sparse_matrix = as.matrix(A),#r_to_py(as.matrix(A))$astype("int"), 
+            feature_matrix=as.matrix(X), 
+            random_seed = 43L, 
+            ae_type="ARGA", 
+            lambda_adv = 1e-3, 
+            lambda_cluster = 1., 
+            epoch_cluster=50L, 
+            K=K, 
+            lambda_kl=0L, 
+            learning_rate = 1e-2, 
+            task='clustering',
+            use_mincut=use_mincut, 
+            n_epochs=400L)
+```
+
+# Summarize Results
+
+# Visualize Results
+
+# Interpret
+```{r}
+
+```
+
+
+# Old code
+```{r}
+source.python("/anaconda2/envs/gcn4r/bin/python")
+reticulate::conda_list()
+detect.conda()
+
+```
+
