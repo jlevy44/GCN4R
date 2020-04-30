@@ -9,20 +9,31 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(gcn4r)
 library(reticulate)
+library(statnet)
+library(latentnet)
+library(wfg)
+library(igraph)
+library(data.table)
+library(pheatmap)
+library(plotly)
+library(htmlwidgets)
+
 ```
 
 # Import Library, link anaconda to R studio
 ```{r}
-reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
+#reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
+reticulate:::conda_list(conda = "auto")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
-GCN4R$api
 ```
 
 
 # Load data
+# fix convergence or load new data
 ```{r}
 net.list<-generate.net.list("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv") 
+net.list
 ```
 
 # Visualize data
@@ -31,36 +42,53 @@ net.list<-generate.net.list("../gcn4r/data/A_physician.csv","../gcn4r/data/X_phy
 visualize.net(net.list)
 ```
 
-
 # Load parameters
 
-# Create design matrix
+```{r}
+parameters<-generate_default_parameters()
+```
+
+# Update parameters
+
+```{r}
+new.parameters<-list(encoder_base="GATConv",
+                     K=3L,
+                     epoch_cluster=100L,
+                     n_layers=1L,
+                     use_mincut=T,
+                     ae_type="ARGA",
+                     custom_dataset="lawyer",
+                     learning_rate=1e-2,
+                     lambda_kl=0.,
+                     lambda_adv=0.001,
+                     lambda_cluster=0.5)
+parameters<-update.parameters(parameters,new.parameters)
+```
+
+
+# Create design matrix, OMITTING
 
 # Fit cluster, embedding, classification, link prediction model
+# need to keep centroids the same for kmeans on prediction
 # 'link_prediction', 'generation', 'clustering', 'embedding', 'classification', 'regression'
 ```{r}
-A
-K=4L
-use_mincut=F# turn kmeans into nn layer
-train_model(custom_dataset = 'none', 
-            sparse_matrix = as.matrix(A),#r_to_py(as.matrix(A))$astype("int"), 
-            feature_matrix=as.matrix(X), 
-            random_seed = 43L, 
-            ae_type="ARGA", 
-            lambda_adv = 1e-3, 
-            lambda_cluster = 1., 
-            epoch_cluster=50L, 
-            K=K, 
-            lambda_kl=0L, 
-            learning_rate = 1e-2, 
-            task='clustering',
-            use_mincut=use_mincut, 
-            n_epochs=400L)
+cluster.model.fit(parameters, net.list)
 ```
 
 # Summarize Results
+```{r}
+results<-return.results(parameters, net.list, task='clustering')
+```
+
 
 # Visualize Results
+```{r}
+graphs<-extract.graphs(results)
+cl<-extract.clusters(results)
+plot.net(graphs$A.pred,cl)
+plot.net(graphs$A.true,cl)
+```
+
 
 # Interpret
 ```{r}

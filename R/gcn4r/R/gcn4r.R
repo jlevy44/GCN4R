@@ -54,8 +54,8 @@ import_gcn4r <- function() {
 ####################### LOAD DATA #######################
 
 generate.net.list <- function (adj.csv,cov.csv) {
-  A<-read.csv(adj.csv)[,-1]
-  X<-read.csv(cov.csv)
+  A<-read.csv(adj.csv)#[,-1]
+  X<-read.csv(cov.csv)#[,-1]
   return(list(A=A,X=X))
 }
 
@@ -65,12 +65,12 @@ to.igraph <- function(A,X){
   return(graph_from_data_frame(A, directed = TRUE, vertices = X))
 }
 
-plot.net <- function(net,group) {
+plot.net <- function(net,group=NULL) {
   V(net)$size <- 7
-  V(net)$color <- group
+  if (!is.null(group)){
+    V(net)$color <- group
+  }
   plot(net, vertex.label='')
-}to.igraph <- function(A,X){
-  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
 }
 
 visualize.net<- function(net.list, covar=NULL) {
@@ -79,6 +79,125 @@ visualize.net<- function(net.list, covar=NULL) {
 }
 
 ####################### SET PARAMETERS #######################
+
+generate_default_parameters <- function() {
+  parameters<-list(learning_rate=1e-4,
+                   n_epochs=300L,
+                   encoder_base='GCNConv',
+                   n_hidden=30L,
+                   n_layers=2L,
+                   discriminator_layers=c(20L,20L),
+                   ae_type='GAE',
+                   bias=T,
+                   attention_heads=1L,
+                   decoder_type='inner',
+                   model_save_loc='saved_model.pkl',
+                   predictions_save_path='predictions.pkl',
+                   predict=F,
+                   lambda_kl=1e-3,
+                   lambda_adv=1e-3,
+                   lambda_cluster=1e-3,
+                   lambda_recon=1.,
+                   lambda_pred=0.,
+                   epoch_cluster=301L,
+                   kl_warmup=20L,
+                   K=10L,
+                   Niter=10L,
+                   sparse_matrix='A.npz',
+                   feature_matrix='X.npy',
+                   custom_dataset='none',
+                   val_ratio=0.05,
+                   test_ratio=0.1,
+                   task='clustering',
+                   use_mincut=F,
+                   kmeans_use_probs=F,
+                   prediction_column=-1L)
+  return(parameters)
+
+}
+
+update.parameters <- function(parameters, new.parameters=list()) {
+  return(modifyList(parameters, new.parameters))
+}
+
+####################### TRAIN MODEL #######################
+
+flush.stdout <- function(){
+  reticulate::py_run_string("import sys; sys.stdout.flush()")
+}
+
+add.graph.info <- function(parameters,net.list,prediction_column=-1L){
+  parameters$sparse_matrix<-as.matrix(net.list$A[,-1])
+  parameters$feature_matrix<-as.matrix(net.list$X[,-1])
+  return(parameters)
+}
+
+cluster.model.fit<- function (parameters, net.list){
+  parameters$task<-"clustering"
+  parameters<-add.graph.info(parameters,net.list)
+  do.call(GCN4R$api$train_model_, parameters)
+  flush.stdout()
+}
+
+classify.model.fit<- function (parameters, net.list, prediction_column=-1L){
+  parameters$task<-"classification"
+  parameters<-add.graph.info(parameters,net.list,prediction_column)
+  do.call(GCN4R$api$train_model_, parameters)
+  flush.stdout()
+}
+
+regression.model.fit<- function (parameters, net.list, prediction_column=-1L){
+  parameters$task<-"regression"
+  parameters<-add.graph.info(parameters,net.list,prediction_column)
+  do.call(GCN4R$api$train_model_, parameters)
+  flush.stdout()
+}
+
+link.prediction.model.fit<- function (parameters, net.list){
+  parameters$task<-"link_prediction"
+  parameters<-add.graph.info(parameters,net.list)
+  do.call(GCN4R$api$train_model_, parameters)
+  flush.stdout()
+}
+
+link.prediction.model.fit<- function (parameters, net.list){
+  parameters$task<-"generation"
+  parameters<-add.graph.info(parameters,net.list)
+  do.call(GCN4R$api$train_model_, parameters)
+  flush.stdout()
+}
+
+####################### SUMMARIZE MODEL (RUN PREDICTION) #######################
+
+return.results<- function(parameters, net.list, prediction_column=-1L, task="clustering") {
+  parameters$task<-task
+  parameters$predict<-T
+  parameters<-add.graph.info(parameters,net.list)
+  do.call(GCN4R$api$train_model_, parameters)
+}
+
+extract.clusters<- function(results) {
+  return(results$cl)
+}
+
+extract.graphs<-function(results) {
+  A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
+  A<-get.edgelist(graph.adjacency(A.adj))
+  X<-setDT(as.data.frame(results$X), keep.rownames = TRUE)[]
+  net1<-to.igraph(A,X)
+  G<-matrix(as.vector(results$G$edge_index$numpy()), nc = 2, byrow = TRUE)+1
+  net2<-to.igraph(G,X)
+  graphs<-list(A.pred=net1,A.true=net2)
+  return(graphs)
+}
+
+####################### VISUALIZE RESULTS #######################
+
+# maybe pca plot of embeddings
+
+
+
+####################### OLD #######################
 
 train_model<- function (learning_rate=1e-4,
                         n_epochs=300L,
