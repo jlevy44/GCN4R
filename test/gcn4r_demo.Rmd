@@ -37,6 +37,7 @@ visualize.net(net.list)
 # Create design matrix
 
 # Fit cluster, embedding, classification, link prediction model
+# 'link_prediction', 'generation', 'clustering', 'embedding', 'classification', 'regression'
 ```{r}
 A
 K=4L

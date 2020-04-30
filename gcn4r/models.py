@@ -39,7 +39,7 @@ class GATConvInterpret(GATConv):
 		return x_j * alpha.view(-1, self.heads, 1)
 
 class Encoder(nn.Module):
-	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True, use_mincut=False, K=10, Niter=10):
+	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True, use_mincut=False, K=10, Niter=10, n_classes=-1):
 		super(Encoder, self).__init__()
 		self.convs=nn.ModuleList()
 		conv_layer=conv_operator(n_input,n_hidden,bias=bias)
@@ -52,13 +52,16 @@ class Encoder(nn.Module):
 		self.adversarial=adversarial
 		self.variational=variational
 		self.use_mincut=use_mincut
+		self.prediction_task=(n_classes>0)
 		if self.use_mincut:
 			self.pool1 = nn.Linear(n_hidden, K)
 			# n_hidden=K
 		else:
 			self.kmeans = KMeansLayer(K=K,Niter=Niter)
+		if self.prediction_task:
+			self.classification_layer=nn.Linear(n_hidden,n_classes)
 		if self.variational:
-			self.convs=self.convs[:-1]
+			# self.convs=self.convs[:-1]
 			conv_mu=conv_operator(n_hidden,n_hidden,bias=bias)
 			conv_logvar=conv_operator(n_hidden,n_hidden,bias=bias)
 			glorot(conv_mu.weight)
@@ -67,17 +70,24 @@ class Encoder(nn.Module):
 			self.conv_logvar=conv_logvar
 		self.n_hidden=n_hidden
 		self.activate_kmeans=False
+		self.relu=nn.ReLU()
 
 	def toggle_kmeans(self):
 		if not self.use_mincut:
 			self.activate_kmeans=bool((int(self.activate_kmeans)+1)%2)
 
+	def reparametrize(self, mu, logvar):
+		if self.training:
+			return mu + torch.randn_like(logvar) * torch.exp(logvar)
+		else:
+			return mu
+
 	def forward(self, x, edge_index):
 		z=x
 		for conv in self.convs[:-1]:
-			z=F.relu(conv(z,edge_index))
-		if not self.variational:
-			z=self.convs[-1](z,edge_index)
+			z=self.relu(conv(z,edge_index))
+		# if not self.variational:
+		z=self.convs[-1](z,edge_index)
 		if self.use_mincut:
 			z_p, mask = to_dense_batch(z, None)
 			adj = to_dense_adj(edge_index, None)
@@ -85,15 +95,25 @@ class Encoder(nn.Module):
 			# print(s.shape)
 			# print(np.bincount(s.detach().argmax(1).numpy().flatten()))
 			_, adj, mc1, o1 = dense_mincut_pool(z_p, adj, s, mask)
+		output=dict()
 		if self.variational:
-			output=[self.conv_mu(z,edge_index), self.conv_logvar(z,edge_index)]
+			output['mu'],output['logvar']=self.conv_mu(z,edge_index),self.conv_logvar(z,edge_index)
+			output['z']=self.reparametrize(output['mu'],output['logvar'])
+			# output=[self.conv_mu(z,edge_index), self.conv_logvar(z,edge_index)]
 		else:
-			output=[z]
+			output['z']=z
+			# output=[z]
+		if self.prediction_task:
+			output['y']=self.classification_layer(z)
 		if self.use_mincut:
-			output.extend([s, mc1, o1])
+			output['s']=s
+			output['mc1']=mc1
+			output['o1']=o1
+			# output.extend([s, mc1, o1])
 		elif self.activate_kmeans:
 			s=self.kmeans(z)
-			output.extend([s])
+			output['s']=s
+			# output.extend([s])
 		return output
 
 class Discriminator(nn.Module):
@@ -125,7 +145,8 @@ def get_model(encoder_base='GCNConv',
 				use_mincut=False,
 				K=10,
 				Niter=10,
-				interpret=False):
+				interpret=False,
+				n_classes=-1):
 	conv_operators=dict(GraphConv=GraphConv,
 						GCNConv=GCNConv,
 						GATConv=GATConv,
@@ -141,7 +162,7 @@ def get_model(encoder_base='GCNConv',
 	assert decoder_type in ['inner']
 	conv_operator = conv_operators[encoder_base]
 	ae_model = ae_types[ae_type]
-	encoder=Encoder(n_input, n_hidden, n_layers, conv_operator, (ae_type in ['VGAE','ARGVA']), (ae_type in ['ARGA','ARGVA']), bias, use_mincut=use_mincut, K=K, Niter=Niter)
+	encoder=Encoder(n_input, n_hidden, n_layers, conv_operator, (ae_type in ['VGAE','ARGVA']), (ae_type in ['ARGA','ARGVA']), bias, use_mincut=use_mincut, K=K, Niter=Niter, n_classes=n_classes)
 	model_inputs=dict(encoder=encoder)
 	if ae_type in ['ARGA','ARGVA']:
 		model_inputs['discriminator']=Discriminator(encoder.n_hidden,discriminator_layers)

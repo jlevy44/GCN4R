@@ -4,6 +4,7 @@ library(latentnet)
 library(wfg)
 library(igraph)
 library(data.table)
+library(pheatmap)
 
 ####################### IMPORT #######################
 

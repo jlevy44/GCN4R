@@ -43,6 +43,7 @@ class ModelTrainer:
 						num_train_batches=None,
 						opt_level='O1',
 						epoch_cluster=301,
+						kl_warmup=20,
 						K=10,
 						Niter=10,
 						lambdas=dict(),
@@ -60,6 +61,11 @@ class ModelTrainer:
 		self.optimizer = optimizers[optimizer_opts.pop('name')](self.model.parameters(),**optimizer_opts)
 		self.scheduler = Scheduler(optimizer=self.optimizer,opts=scheduler_opts)
 		self.n_epoch = n_epoch
+		self.task = task
+		if self.task=='regression':
+			loss_fn='mse'
+		elif self.task=='classification':
+			loss_fn='ce'
 		self.loss_fn = loss_functions[loss_fn]
 		self.loss_fn_name = loss_fn
 		self.bce=(self.loss_fn_name=='bce')
@@ -74,12 +80,14 @@ class ModelTrainer:
 		self.Niter=Niter
 		self.cluster_loss_fn = ClusteringLoss(self.K, self.Niter,self.kmeans_use_probs)
 		self.lambdas=lambdas
-		self.task = task
 		self.use_mincut=use_mincut
 		self.print_clusters=print_clusters
+		self.add_kl=False
+		self.kl_warmup=kl_warmup
+
 
 	def establish_clusters(self, x, edge_index):
-		z=self.model.encode(x, edge_index)[0]
+		z=self.model.encoder(x, edge_index)['z']
 		cl,centroids=KMeans(torch.FloatTensor(z).cuda() if torch.cuda.is_available() else torch.FloatTensor(z),self.K,self.Niter)
 		if self.print_clusters:
 			print(' '.join(np.bincount(cl.numpy()).astype(str)))
@@ -88,11 +96,16 @@ class ModelTrainer:
 			self.centroids=self.centroids.cuda()
 		return self.centroids
 
-	def calc_loss(self, x, edge_index, val_edge_index=None):
+	def prediction_loss(self,y_pred,y_true):
+		return self.loss_fn(y_pred,y_true)
+
+	# @pysnooper.snoop()
+	def calc_loss(self, x, edge_index, val_edge_index=None, y=None, idx_df=None):
+		output=self.model.encoder(x, edge_index)
 		if not self.use_mincut:
-			z = self.model.encode(x, edge_index)[0]
+			z = output['z']
 		else:
-			z, s, mc1, o1 = self.model.encode(x, edge_index)
+			z, s, mc1, o1 = output['z'],output['s'],output['mc1'],output['o1']#self.model.encode(x, edge_index)
 			if self.print_clusters:
 				print(' '.join(np.bincount(s.argmax(1).numpy()).astype(str)))
 		# print(z.shape)
@@ -101,17 +114,21 @@ class ModelTrainer:
 		losses=dict(cluster=0.,
 					adv=0.,
 					kl=0.,
-					recon=0.)
+					recon=0.,
+					pred=0.)
 		losses['recon'] = self.model.recon_loss(z, edge_index)
 		if self.model.encoder.variational:
-			losses['kl'] = self.model.kl_loss()
+			losses['kl'] = self.model.kl_loss(output['mu'],output['logvar'])
 		if self.model.encoder.adversarial:
 			losses['adv'] = self.model.discriminator_loss(z)
+		if self.model.encoder.prediction_task:
+			idx=idx_df['idx'].values
+			losses['pred'] = self.prediction_loss(output['y'][idx],y[idx])
 		if self.add_cluster_loss:
 			losses['cluster'] = (self.cluster_loss_fn(z,self.centroids)[0] if not self.use_mincut else mc1+o1)
 		loss = losses['recon']
-		for k in ['adv','kl','recon','cluster']:
-			loss+=self.lambdas[k]*losses[k]
+		for k in ['adv','kl','recon','cluster','pred']:
+			loss+=self.lambdas.get(k,0.)*losses[k]
 		# if self.model.encoder.variational:
 		#     loss = loss + (1 / data.num_nodes) * model.kl_loss()
 		return loss #self.loss_fn(y_pred, y_true)
@@ -181,7 +198,7 @@ class ModelTrainer:
 			x,edge_index=G.x,G.edge_index
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
-		loss = self.calc_loss(x,edge_index)
+		loss = self.calc_loss(x,edge_index,None,G.y,G.idx_df.loc[G.idx_df['set']=='train'] if self.model.encoder.prediction_task else None)
 		train_loss=loss.item()
 		self.optimizer.zero_grad()
 		self.loss_backward(loss)
@@ -220,7 +237,7 @@ class ModelTrainer:
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
 
-		loss = self.calc_loss(x,edge_index,val_edge_index) # .view(-1,1)
+		loss = self.calc_loss(x,edge_index,val_edge_index,G.y,G.idx_df.loc[G.idx_df['set']=='val'] if self.model.encoder.prediction_task else None) # .view(-1,1)
 		val_loss=loss.item()
 		print("Epoch {} Val Loss:{}".format(epoch,val_loss))
 
@@ -262,23 +279,21 @@ class ModelTrainer:
 			if torch.cuda.is_available():
 				x,edge_index = x.cuda(),edge_index.cuda()
 
+			self.model.encoder.toggle_kmeans()
+			output = self.model.encoder(x, edge_index)#[0]
+			self.model.encoder.toggle_kmeans()
+			if not self.model.encoder.variational:
+				z,s=output['z'],output['s']
+			else:
+				z,s=output['mu'],output['s']
+			if not self.model.encoder.prediction_task:
+				y=0.
+			else:
+				y=output['y']
 			if not self.use_mincut:
-				self.model.encoder.toggle_kmeans()
-				z = self.model.encode(x, edge_index)#[0]
-				self.model.encoder.toggle_kmeans()
-				if not self.model.encoder.variational:
-					z,s=z
-				else:
-					z,_,s=z
 				cl,c=KMeans(z, K=self.K, Niter=self.Niter, verbose=False)
-
 				cl,c=cl.numpy(),c.numpy()
 			else:
-				z = self.model.encode(x, edge_index)
-				if not self.model.encoder.variational:
-					z,s,_,_=z
-				else:
-					z,_,s,_,_=z
 				cl,c=s.argmax(1).numpy(),0.
 
 			A=self.model.decoder.forward_all(z).numpy()
@@ -294,7 +309,7 @@ class ModelTrainer:
 
 			z=z.numpy()
 
-		return G,z,cl,c,A,threshold,s
+		return G,z,cl,c,A,threshold,s,y
 
 	def fit(self, G, verbose=False, print_every=10, save_model=True, plot_training_curves=False, plot_save_file=None, print_val_confusion=True, save_val_predictions=True):
 		"""Fits the segmentation or classification model to the patches, saving the model with the lowest validation score.
@@ -336,6 +351,8 @@ class ModelTrainer:
 				self.add_cluster_loss=True
 				if not self.use_mincut:
 					self.centroids=self.establish_clusters(G.x, (G.train_pos_edge_index if self.task=='link_prediction' else G.edge_index))
+			if epoch >= (self.epoch_cluster+self.kl_warmup):
+				self.add_kl=True
 			start_time=time.time()
 			train_loss = self.train_loop(epoch,G)
 			current_time=time.time()
@@ -343,13 +360,13 @@ class ModelTrainer:
 			self.train_losses.append(train_loss)
 			val_loss = self.val_loop(epoch,G, print_val_confusion=False, save_predictions=False)
 			val_time=time.time()-current_time
-			if self.add_cluster_loss:
+			if self.add_cluster_loss and self.add_kl:
 				self.val_losses.append(val_loss)
 			if False and verbose and not (epoch % print_every):
 				if plot_training_curves:
 					self.plot_train_val_curves(plot_save_file)
 				print("Epoch {}: Train Loss {}, Val Loss {}, Train Time {}, Val Time {}".format(epoch,train_loss,val_loss,train_time,val_time))
-			if self.add_cluster_loss and val_loss <= min(self.val_losses) and save_model:
+			if self.add_cluster_loss and self.add_kl and val_loss <= min(self.val_losses) and save_model:
 				print("New Best Model at Epoch {}".format(epoch))
 				min_val_loss = val_loss
 				best_epoch = epoch

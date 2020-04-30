@@ -14,6 +14,8 @@ import pandas as pd, numpy as np
 import networkx as nx
 from networkx import kamada_kawai_layout, spring_layout
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
 import cdlib
 sns.set()
@@ -191,10 +193,11 @@ def get_data_model(custom_dataset,
 					Niter,
 					val_ratio,
 					test_ratio,
-					interpret=False
+					interpret=False,
+					prediction_column=-1
 					):
 	assert custom_dataset in ['lawyer', 'physician', 'none']
-	assert task in ['link_prediction', 'generation', 'clustering', 'embedding']
+	assert task in ['link_prediction', 'generation', 'clustering', 'embedding', 'classification', 'regression']
 	torch.manual_seed(random_seed)
 	np.random.seed(random_seed)
 	random.seed(random_seed)
@@ -227,13 +230,40 @@ def get_data_model(custom_dataset,
 	else:
 		X=feature_matrix
 
+	y=None
+	idx_df=None
+	label_encoder=None
+	n_classes=-1
+	if task in ['classification','regression']:
+		X=pd.DataFrame(X)
+		print(X)
+		assert prediction_column>=0 #in X.columns
+		prediction_column=X.columns.values[prediction_column]
+		y=X.pop(prediction_column).values.flatten()
+		X=X.values
+		print(X,y)
+		idx_df=pd.DataFrame(dict(idx=np.arange(len(y)),y=y))
+		idx_df_train,idx_df_test=train_test_split(idx_df,test_size=test_ratio,stratify=idx_df['y'] if task=='classification' else None, random_state=random_seed)
+		idx_df_train,idx_df_val=train_test_split(idx_df_train,test_size=val_ratio,stratify=idx_df_train['y'] if task=='classification' else None, random_state=random_seed)
+		idx_df_train['set']='train'
+		idx_df_val['set']='val'
+		idx_df_test['set']='test'
+		idx_df=pd.concat([idx_df_train,idx_df_val,idx_df_test])
+		if task=='classification':
+			n_classes=idx_df['y'].nunique()
+			label_encoder=LabelEncoder()
+			y=torch.tensor(label_encoder.fit_transform(y)).long()
+		else:
+			n_classes=1
+			y=torch.FloatTensor(y)
+
 	X=torch.FloatTensor(X)
 
 	n_input = X.shape[1]
 
 	edge_index,edge_attr=from_scipy_sparse_matrix(sparse_matrix)
 
-	G=Data(X,edge_index,edge_attr)
+	G=Data(X,edge_index,edge_attr,y=y,idx_df=idx_df)
 
 	G.num_nodes = X.shape[0]
 
@@ -249,9 +279,10 @@ def get_data_model(custom_dataset,
 					use_mincut,
 					K,
 					Niter,
-					interpret)
+					interpret,
+					n_classes)
 
-	if task in 'link_prediction':
+	if task == 'link_prediction':
 		G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
 
 	if torch.cuda.is_available():
@@ -275,7 +306,10 @@ def train_model_(#inputs_dir,
 				lambda_kl,
 				lambda_adv,
 				lambda_cluster,
+				lambda_recon,
+				lambda_pred,
 				epoch_cluster,
+				kl_warmup,
 				K,
 				Niter,
 				sparse_matrix,
@@ -287,7 +321,8 @@ def train_model_(#inputs_dir,
 				task='link_prediction',
 				use_mincut=False,
 				initialize_spectral=True,
-				kmeans_use_probs=False
+				kmeans_use_probs=False,
+				prediction_column=-1
 				):
 
 	optimizer_opts=dict(name='adam',
@@ -303,7 +338,8 @@ def train_model_(#inputs_dir,
 	lambdas=dict(cluster=lambda_cluster,
 				adv=lambda_adv,
 				kl=lambda_kl,
-				recon=1.)
+				recon=lambda_recon,
+				pred=lambda_pred)
 
 	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
 													task,
@@ -323,7 +359,8 @@ def train_model_(#inputs_dir,
 													K,
 													Niter,
 													val_ratio,
-													test_ratio
+													test_ratio,
+													prediction_column=prediction_column
 													)
 
 	trainer=ModelTrainer(model,
@@ -331,6 +368,7 @@ def train_model_(#inputs_dir,
 						optimizer_opts,
 						scheduler_opts,
 						epoch_cluster=epoch_cluster,
+						kl_warmup=kl_warmup,
 						K=K,
 						Niter=Niter,
 						lambdas=lambdas,
@@ -348,11 +386,11 @@ def train_model_(#inputs_dir,
 
 		trainer.model.load_state_dict(torch.load(model_save_loc))
 
-		_,z,cl,c,A,threshold,s=trainer.predict(G)
+		_,z,cl,c,A,threshold,s,y=trainer.predict(G)
 
 		G=Data(X,edge_index,edge_attr)
 
-		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold,s=s)
+		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold,s=s,y=y)
 
 		torch.save(output,predictions_save_path)
 
@@ -378,6 +416,7 @@ def interpret_model(custom_dataset,
 					val_ratio,
 					test_ratio,
 					model_save_loc,
+					prediction_column,
 					mode='captum',
 					method='integrated_gradients'):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
@@ -404,13 +443,15 @@ def interpret_model(custom_dataset,
 													Niter,
 													val_ratio,
 													test_ratio,
+													prediction_column=prediction_column
 													)
 	model.load_state_dict(torch.load(model_save_loc))
 	model.train(False)
 	model.encoder.toggle_kmeans()
 	attr_results={}
 	if mode=='captum':
-		attr_results['cluster_assignments']=model.encode(G.x, G.edge_index)[1]
+		attr_results['cluster_assignments']=model.encoder(G.x, G.edge_index)['s'] # add y from prediction
+		# print(attr_results['cluster_assignments'])
 		for i in range(K):
 			attr_results[i]=captum_interpret_graph(G, model, use_mincut, target=i, method=method)
 	else:

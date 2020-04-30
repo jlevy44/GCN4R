@@ -24,7 +24,10 @@ class Commands(object):
 					lambda_kl=1e-3,
 					lambda_adv=1e-3,
 					lambda_cluster=1e-3,
+					lambda_recon=1.,
+					lambda_pred=0.,
 					epoch_cluster=301,
+					kl_warmup=20,
 					K=10,
 					Niter=10,
 					sparse_matrix='A.npz',
@@ -34,7 +37,8 @@ class Commands(object):
 					test_ratio=0.1,
 					task='clustering',
 					use_mincut=False,
-					kmeans_use_probs=False
+					kmeans_use_probs=False,
+					prediction_column=-1
 					):
 
 		train_model_(#inputs_dir,
@@ -54,7 +58,10 @@ class Commands(object):
 						lambda_kl,
 						lambda_adv,
 						lambda_cluster,
+						lambda_recon,
+						lambda_pred,
 						epoch_cluster,
+						kl_warmup,
 						K,
 						Niter,
 						sparse_matrix,
@@ -64,7 +71,8 @@ class Commands(object):
 						test_ratio,
 						task=task,
 						use_mincut=use_mincut,
-						kmeans_use_probs=kmeans_use_probs
+						kmeans_use_probs=kmeans_use_probs,
+						prediction_column=prediction_column
 						)
 
 	def visualize(self,
