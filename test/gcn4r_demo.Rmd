@@ -8,21 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(gcn4r)
-library(reticulate)
-library(statnet)
-library(latentnet)
-library(wfg)
-library(igraph)
-library(data.table)
-library(pheatmap)
-library(plotly)
-library(htmlwidgets)
-
 ```
 
 # Import Library, link anaconda to R studio
 ```{r}
-#reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
+reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::conda_list(conda = "auto")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
@@ -32,7 +22,8 @@ GCN4R<-import_gcn4r()
 # Load data
 # fix convergence or load new data
 ```{r}
-net.list<-generate.net.list("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv") 
+physician.files<-c("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv")
+net.list<-generate.net.list("A_lawyer.csv","X_lawyer.csv") 
 net.list
 ```
 
@@ -57,7 +48,7 @@ new.parameters<-list(encoder_base="GATConv",
                      n_layers=1L,
                      use_mincut=T,
                      ae_type="ARGA",
-                     custom_dataset="lawyer",
+                     custom_dataset="none",
                      learning_rate=1e-2,
                      lambda_kl=0.,
                      lambda_adv=0.001,
@@ -66,41 +57,41 @@ parameters<-update.parameters(parameters,new.parameters)
 ```
 
 
-# Create design matrix, OMITTING
-
-# Fit cluster, embedding, classification, link prediction model
-# need to keep centroids the same for kmeans on prediction
-# 'link_prediction', 'generation', 'clustering', 'embedding', 'classification', 'regression'
+# Create design matrix to expand factors, update net.list
 ```{r}
-cluster.model.fit(parameters, net.list)
+# WILL DO, WIP!
+```
+
+
+# Fit cluster, embedding, classification, generation, or link prediction model
+```{r}
+cluster.model<-cluster.model.fit(parameters, net.list)
 ```
 
 # Summarize Results
 ```{r}
-results<-return.results(parameters, net.list, task='clustering')
+results<-extract.results(cluster.model)
+graphs<-extract.graphs(cluster.model)
+cl<-extract.clusters(cluster.model)
+summary(cluster.model)
 ```
 
 
 # Visualize Results
 ```{r}
-graphs<-extract.graphs(results)
-cl<-extract.clusters(results)
-plot.net(graphs$A.pred,cl)
-plot.net(graphs$A.true,cl)
+plot(cluster.model)
 ```
 
 
 # Interpret
+# Attention between Two Individuals 
 ```{r}
-
+attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
+```
+# Important Samples and Features per Cluster Assignment 
+```{r}
+attributions<-interpret.predictors(cluster.model)
 ```
 
 
-# Old code
-```{r}
-source.python("/anaconda2/envs/gcn4r/bin/python")
-reticulate::conda_list()
-detect.conda()
-
-```
 

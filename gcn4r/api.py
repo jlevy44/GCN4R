@@ -214,7 +214,7 @@ def get_data_model(custom_dataset,
 	elif not sps.issparse(sparse_matrix):
 		sparse_matrix=sps.csr_matrix(sparse_matrix)
 
-	print(sparse_matrix.shape)
+	# print(sparse_matrix.shape)
 
 	if isinstance(feature_matrix,str) and os.path.exists(feature_matrix) and feature_matrix.split('.')[-1] in ['npy','csv']:
 		if feature_matrix.endswith('.csv'):
@@ -236,12 +236,12 @@ def get_data_model(custom_dataset,
 	n_classes=-1
 	if task in ['classification','regression']:
 		X=pd.DataFrame(X)
-		print(X)
+		# print(X)
 		assert prediction_column>=0 #in X.columns
 		prediction_column=X.columns.values[prediction_column]
 		y=X.pop(prediction_column).values.flatten()
 		X=X.values
-		print(X,y)
+		# print(X,y)
 		idx_df=pd.DataFrame(dict(idx=np.arange(len(y)),y=y))
 		idx_df_train,idx_df_test=train_test_split(idx_df,test_size=test_ratio,stratify=idx_df['y'] if task=='classification' else None, random_state=random_seed)
 		idx_df_train,idx_df_val=train_test_split(idx_df_train,test_size=val_ratio,stratify=idx_df_train['y'] if task=='classification' else None, random_state=random_seed)
@@ -290,39 +290,40 @@ def get_data_model(custom_dataset,
 	return G,model,X,edge_index,edge_attr
 
 def train_model_(#inputs_dir,
-				learning_rate,
-				n_epochs,
-				encoder_base,
-				n_hidden,
-				n_layers,
-				discriminator_layers,
-				ae_type,
-				bias,
-				attention_heads,
-				decoder_type,
-				model_save_loc,
-				predictions_save_path,
-				predict,
-				lambda_kl,
-				lambda_adv,
-				lambda_cluster,
-				lambda_recon,
-				lambda_pred,
-				epoch_cluster,
-				kl_warmup,
-				K,
-				Niter,
-				sparse_matrix,
-				feature_matrix,
-				custom_dataset,
-				val_ratio,
-				test_ratio,
+				learning_rate=1e-4,
+				n_epochs=300,
+				encoder_base="GCNConv",
+				n_hidden=30,
+				n_layers=2,
+				discriminator_layers=[20,20],
+				ae_type="GAE",
+				bias=True,
+				attention_heads=1,
+				decoder_type='inner',
+				model_save_loc='saved_model.pkl',
+				predictions_save_path='predictions.pkl',
+				predict=False,
+				lambda_kl=1e-3,
+				lambda_adv=1e-3,
+				lambda_cluster=1e-3,
+				lambda_recon=1.,
+				lambda_pred=0.,
+				epoch_cluster=301,
+				kl_warmup=20,
+				K=10,
+				Niter=10,
+				sparse_matrix='A.npz',
+				feature_matrix='X.npz',
+				custom_dataset=None,
+				val_ratio=0.05,
+				test_ratio=0.1,
 				random_seed=42,
 				task='link_prediction',
 				use_mincut=False,
 				initialize_spectral=True,
 				kmeans_use_probs=False,
-				prediction_column=-1
+				prediction_column=-1,
+				**kwargs
 				):
 
 	optimizer_opts=dict(name='adam',
@@ -396,29 +397,30 @@ def train_model_(#inputs_dir,
 
 		return output
 
-def interpret_model(custom_dataset,
-					task,
-					random_seed,
-					sparse_matrix,
-					feature_matrix,
-					initialize_spectral,
-					encoder_base,
-					n_hidden,
-					n_layers,
-					discriminator_layers,
-					ae_type,
-					bias,
-					attention_heads,
-					decoder_type,
-					use_mincut,
-					K,
-					Niter,
-					val_ratio,
-					test_ratio,
-					model_save_loc,
-					prediction_column,
+def interpret_model(custom_dataset='none',
+					task='clustering',
+					random_seed=42,
+					sparse_matrix='A.npz',
+					feature_matrix='X.npy',
+					initialize_spectral=False,
+					encoder_base='GCNConv',
+					n_hidden=30,
+					n_layers=2,
+					discriminator_layers=[20,20],
+					ae_type='GAE',
+					bias=True,
+					attention_heads=1,
+					decoder_type='inner',
+					use_mincut=False,
+					K=10,
+					Niter=10,
+					val_ratio=0.05,
+					test_ratio=0.1,
+					model_save_loc='saved_model.pkl',
+					prediction_column=-1,
 					mode='captum',
-					method='integrated_gradients'):
+					method='integrated_gradients',
+					**kwargs):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
 	assert mode in ['captum','attention']
 	if mode=='attention':
@@ -449,8 +451,12 @@ def interpret_model(custom_dataset,
 	model.train(False)
 	model.encoder.toggle_kmeans()
 	attr_results={}
+	if model.encoder.prediction_task:
+		output_key='y'
+	else:
+		output_key='s'
 	if mode=='captum':
-		attr_results['cluster_assignments']=model.encoder(G.x, G.edge_index)['s'] # add y from prediction
+		attr_results['cluster_assignments']=model.encoder(G.x, G.edge_index)[output_key] # add y from prediction
 		# print(attr_results['cluster_assignments'])
 		for i in range(K):
 			attr_results[i]=captum_interpret_graph(G, model, use_mincut, target=i, method=method)

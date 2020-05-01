@@ -1,10 +1,16 @@
-library(reticulate)
-library(statnet)
-library(latentnet)
-library(wfg)
-library(igraph)
-library(data.table)
-library(pheatmap)
+.onLoad <- function(libname, pkgname){
+  library(reticulate)
+  library(statnet)
+  library(latentnet)
+  library(wfg)
+  library(igraph)
+  library(data.table)
+  library(pheatmap)
+  library(plotly)
+  library(htmlwidgets)
+  library(magick)
+  library(Matrix)
+}
 
 ####################### IMPORT #######################
 
@@ -61,16 +67,16 @@ generate.net.list <- function (adj.csv,cov.csv) {
 
 ####################### VISUALIZE DATA #######################
 
-to.igraph <- function(A,X){
-  return(graph_from_data_frame(A, directed = TRUE, vertices = X))
+to.igraph <- function(A,X,directed=T){
+  return(graph_from_data_frame(A, directed = directed, vertices = X))
 }
 
-plot.net <- function(net,group=NULL) {
+plot.net <- function(net,group=NULL,title="") {
   V(net)$size <- 7
   if (!is.null(group)){
     V(net)$color <- group
   }
-  plot(net, vertex.label='')
+  plot(net, vertex.label='', main=title)
 }
 
 visualize.net<- function(net.list, covar=NULL) {
@@ -112,6 +118,7 @@ generate_default_parameters <- function() {
                    use_mincut=F,
                    kmeans_use_probs=F,
                    prediction_column=-1L)
+  class(parameters)<-"parameters"
   return(parameters)
 
 }
@@ -126,10 +133,23 @@ flush.stdout <- function(){
   reticulate::py_run_string("import sys; sys.stdout.flush()")
 }
 
+return.results<- function(parameters, net.list, prediction_column=-1L, task="clustering") {
+  parameters$task<-task
+  parameters<-add.graph.info(parameters,net.list)
+  do.call(GCN4R$api$train_model_, parameters)
+}
+
 add.graph.info <- function(parameters,net.list,prediction_column=-1L){
   parameters$sparse_matrix<-as.matrix(net.list$A[,-1])
   parameters$feature_matrix<-as.matrix(net.list$X[,-1])
   return(parameters)
+}
+
+build.model.class <- function(parameters,net.list,class.name,prediction_column=-1L){
+  fit.model<-list(parameters=parameters,
+                  results=return.results(parameters,net.list,prediction_column=prediction_column,task=parameters$task))
+  fit.model<-structure(fit.model,class=c("gnn.model",class.name))
+  return(fit.model)
 }
 
 cluster.model.fit<- function (parameters, net.list){
@@ -137,6 +157,9 @@ cluster.model.fit<- function (parameters, net.list){
   parameters<-add.graph.info(parameters,net.list)
   do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
+  parameters$predict<-T
+  fit.model<-build.model.class(parameters,net.list,"gnn.cluster.model")
+  return(fit.model)
 }
 
 classify.model.fit<- function (parameters, net.list, prediction_column=-1L){
@@ -144,6 +167,8 @@ classify.model.fit<- function (parameters, net.list, prediction_column=-1L){
   parameters<-add.graph.info(parameters,net.list,prediction_column)
   do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
+  fit.model<-build.model.class(parameters,net.list,"gnn.classify.model",prediction_column)
+  return(fit.model)
 }
 
 regression.model.fit<- function (parameters, net.list, prediction_column=-1L){
@@ -151,6 +176,8 @@ regression.model.fit<- function (parameters, net.list, prediction_column=-1L){
   parameters<-add.graph.info(parameters,net.list,prediction_column)
   do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
+  fit.model<-build.model.class(parameters,net.list,"gnn.regress.model",prediction_column)
+  return(fit.model)
 }
 
 link.prediction.model.fit<- function (parameters, net.list){
@@ -158,46 +185,181 @@ link.prediction.model.fit<- function (parameters, net.list){
   parameters<-add.graph.info(parameters,net.list)
   do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
+  fit.model<-build.model.class(parameters,net.list,"gnn.link.model")
+  return(fit.model)
 }
 
-link.prediction.model.fit<- function (parameters, net.list){
+generative.model.fit<- function (parameters, net.list){
   parameters$task<-"generation"
   parameters<-add.graph.info(parameters,net.list)
   do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
+  fit.model<-build.model.class(parameters,net.list,"gnn.generative.model")
+  return(fit.model)
 }
 
 ####################### SUMMARIZE MODEL (RUN PREDICTION) #######################
 
-return.results<- function(parameters, net.list, prediction_column=-1L, task="clustering") {
-  parameters$task<-task
-  parameters$predict<-T
-  parameters<-add.graph.info(parameters,net.list)
-  do.call(GCN4R$api$train_model_, parameters)
+summary.gnn.cluster.model<- function(gnn.model){
+  cl<-extract.clusters(gnn.model)
+  z<-extract.embeddings(gnn.model)
+  cluster.breakdown<-table(cl)
+  print(paste("Extracted",toString(length(cluster.breakdown)),"clusters:"))
+  print(cluster.breakdown)
+  print(paste("Extracted low dimensional embeddings of shape",toString(nrow(z)),toString(ncol(z))))
+  print("Clustering Vector:")
+  print(cl)
+  print("Fuzzy Cluster Assignment Matrix:")
+  print(gnn.model$results$s)
+  print("Generated and Real Networks:")
+  print(extract.graphs(gnn.model))
 }
 
-extract.clusters<- function(results) {
-  return(results$cl)
+summary.gnn.generative.model<-function(gnn.model){
+  print("Not Implemented")
 }
 
-extract.graphs<-function(results) {
+summary.gnn.class.model<-function(gnn.model){
+  print("Not Implemented")
+}
+
+summary.gnn.regress.model<-function(gnn.model){
+  print("Not Implemented")
+}
+
+summary.gnn.link.model<-function(gnn.model){
+  print("Not Implemented")
+}
+
+extract.results<- function(gnn.model) {
+  return(gnn.model$results)
+}
+
+extract.clusters<- function(gnn.model) {
+  return(gnn.model$results$cl)
+}
+
+extract.embeddings<- function(gnn.model) {
+  return(gnn.model$results$z)
+}
+
+extract.parameters<- function(gnn.model) {
+  return(gnn.model$parameters)
+}
+
+extract.graphs<-function(gnn.model,directed=T) {
+  results<-extract.results(gnn.model)
   A.adj<-matrix(as.integer(results$A>results$threshold),nrow=nrow(results$A))
   A<-get.edgelist(graph.adjacency(A.adj))
   X<-setDT(as.data.frame(results$X), keep.rownames = TRUE)[]
-  net1<-to.igraph(A,X)
+  net1<-to.igraph(A,X,directed=directed)
   G<-matrix(as.vector(results$G$edge_index$numpy()), nc = 2, byrow = TRUE)+1
-  net2<-to.igraph(G,X)
+  net2<-to.igraph(G,X,directed=directed)
   graphs<-list(A.pred=net1,A.true=net2)
   return(graphs)
 }
 
 ####################### VISUALIZE RESULTS #######################
 
+plot.nets<-function(gnn.model,cl){
+  graphs<-extract.graphs(gnn.model)
+  plot.net(graphs$A.pred,cl,title="Predicted Network")
+  plot.net(graphs$A.true,cl,title="Original Network")
+}
+
 # maybe pca plot of embeddings
+plot.gnn.cluster.model <- function(gnn.model) {
+  cl<-extract.clusters(gnn.model)
+  plot.nets(gnn.model,cl)
+}
 
+plot.gnn.classify.model <- function(gnn.model) {
+  cl<-gnn.model$results$y
+  plot.nets(gnn.model,cl)
+}
 
+plot.gnn.regress.model <- function(gnn.model) {
+  cl<-gnn.model$results$y
+  plot.nets(gnn.model,cl)
+}
 
-####################### OLD #######################
+plot.gnn.link.model <- function(gnn.model) {
+  cl<-NULL
+  plot.nets(gnn.model,cl)
+}
+
+plot.gnn.generative.model <- function(gnn.model) {
+  cl<-NULL
+  plot.nets(gnn.model,cl)
+}
+
+####################### INTERPRET RESULTS #######################
+
+visualize.attention<-function(gnn.model,weight.scaling.factor=20.){
+  parameters<-extract.parameters(gnn.model)
+  parameters$mode<-"attention"
+  attribution<-do.call(GCN4R$api$interpret_model, parameters)
+  cl<-NULL
+  if (class(gnn.model)[2]=='gnn.cluster.model'){
+    cl<-extract.clusters(gnn.model)
+  } else if (class(gnn.model)[2] %in% c('gnn.classify.model','gnn.regress.model')) {
+    cl<-gnn.model$results$y
+  }
+
+  flush.stdout()
+  weight_matrices<-GCN4R$interpret$return_attention_weights(attribution,T)
+  # net.orig<-#extract.graphs(gnn.model,directed=F)$A.true
+  c_scale <- colorRamp(c('grey','red'))
+
+  for (i in 1:length(weight_matrices)) {
+
+    weight_matrix<-as.matrix(weight_matrices[[i]])
+    weight_matrix<-(weight_matrix+t(weight_matrix))/2
+    weight_matrices[[i]]<-weight_matrix
+    net.true<-graph_from_adjacency_matrix(weight_matrix, mode="upper", weighted=TRUE)
+    # E(net.true)$edge.color<-weight/max(weight)*weight.scaling.factor
+    E(net.true)$edge.curved=0.
+    V(net.true)$color <- cl
+    net.true<-simplify(net.true)
+    V(net.true)$size <- 5
+    # <-weight
+    weight<-E(net.true)$weight
+    E(net.true)$width<-weight/max(weight)*weight.scaling.factor
+    E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+    l <- layout_with_fr(net.true)
+    l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
+    plot(net.true, layout=l*1., rescale=F, edge.curved=0., vertex.label="", main="")
+
+  }
+  return(weight_matrices)
+}
+
+interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients"){
+  parameters<-extract.parameters(gnn.model)
+  parameters$mode<-"captum"
+  attributions<-do.call(GCN4R$api$interpret_model, parameters)
+  classes<-names(attributions)
+  classes<-classes[classes!="cluster_assignments"]
+  attr.list<-GCN4R$interpret$plot_attribution(attributions,F,T)
+
+  for (i in 1:length(classes)){
+    attribution<-as.data.frame(attr.list$attributions[i])
+    row_annot<-data.frame(cluster=as.factor(attr.list$cl))
+    col_annot<-data.frame(importance=attr.list$feature_importances)
+    rownames(attribution)<-1:nrow(attribution)
+    colnames(attribution)<-1:ncol(attribution)
+
+    rownames(col_annot) <- colnames(attribution)
+    colnames(col_annot) <- c("feature")#colnames(attribution)
+    rownames(row_annot) <- rownames(attribution)
+    colnames(row_annot) <- c("cluster")
+
+    pheatmap(attribution,annotation_col=col_annot,annotation_row=row_annot)
+  }
+  return(attr.list)
+}
+
+####################### OLD/DEPRECATED #######################
 
 train_model<- function (learning_rate=1e-4,
                         n_epochs=300L,
