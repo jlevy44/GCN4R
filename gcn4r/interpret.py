@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from sklearn.preprocessing import MinMaxScaler
 from scipy.sparse import csr_matrix
+from gcn4r.models import ExplainerModel
 
 def captum_interpret_graph(G, model, use_mincut, target=0, method='integrated_gradients'):
 	# assert use_mincut , "Interpretations only work for min-cut pooling for now"
@@ -96,3 +97,27 @@ def plot_attribution(attribute,standard_scale=False,minmax_scale=False,str_idx=F
 			cmap = sns.cubehelix_palette(dark=0.0,light=1.,rot=5, as_cmap=True)
 			sns.clustermap(attribution,standard_scale=standard_scale,col_colors=[cmap(ft) for ft in feature_importances],row_colors=row_colors)
 	return dict(attributions=attributions,feature_importances=feature_importances,cl=cl)
+
+def create_explainer(model=None, epochs=100, lr=0.01):
+	from torch_geometric.nn.models.gnn_explainer import GNNExplainer
+	return GNNExplainer(model, epochs=epochs, lr=lr)
+
+def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01):
+	assert task in ['clustering','classification']
+	if task=='clustering':
+		key='s'
+	else:
+		key='y'
+	x=G.x
+	edge_index=G.edge_index
+	if node_idx == None:
+		node_idx = np.arange(x.shape[0])
+	elif isinstance(node_idx,int):
+		node_idx = [node_idx]
+	model=ExplainerModel(model,key)
+	explainer=create_explainer(model,epochs,lr)
+	plts={}
+	for i in node_idx:
+		node_feat_mask, edge_mask = explainer.explain_node(i, x, edge_index)
+		plts[i]=explainer.visualize_subgraph(i, edge_index, edge_mask, y=y)
+	return plts

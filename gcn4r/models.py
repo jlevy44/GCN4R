@@ -11,6 +11,15 @@ from collections import defaultdict
 import copy
 from torch_geometric.utils import softmax
 
+class ExplainerModel(nn.Module):
+	def __init__(self, model,key='s'):
+		super(ExplainerModel, self).__init__()
+		self.model=model
+		self.key=key
+
+	def forward(self, x, edge_index):
+		return F.log_softmax(self.model(x,edge_index)[self.key], dim=1)
+
 class GATConvInterpret(GATConv):
 	def __init__(self, in_channels, out_channels, heads=1, concat=True,
 				 negative_slope=0.2, dropout=0, bias=True, **kwarg):

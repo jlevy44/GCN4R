@@ -420,9 +420,11 @@ def interpret_model(custom_dataset='none',
 					prediction_column=-1,
 					mode='captum',
 					method='integrated_gradients',
+					epochs=100,
+					lr=0.01,
 					**kwargs):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
-	assert mode in ['captum','attention']
+	assert mode in ['captum','attention','gnn_explainer']
 	if mode=='attention':
 		assert encoder_base=='GATConv'
 		encoder_base='GATConvInterpret'
@@ -455,13 +457,23 @@ def interpret_model(custom_dataset='none',
 		output_key='y'
 	else:
 		output_key='s'
+	if mode in ['captum','gnn_explainer']:
+		attr_results['cluster_assignments']=model.encoder(G.x, G.edge_index)[output_key]
 	if mode=='captum':
-		attr_results['cluster_assignments']=model.encoder(G.x, G.edge_index)[output_key] # add y from prediction
+		# add y from prediction
 		# print(attr_results['cluster_assignments'])
 		for i in range(K):
 			attr_results[i]=captum_interpret_graph(G, model, use_mincut, target=i, method=method)
-	else:
+	elif mode=='attention':
 		attr_results=return_attention_scores(G, model)
+	else:
+		try:
+			from gcn4r.interpret import explain_nodes
+		except:
+			print("Please reinstall torch_geometric via the following command: pip uninstall torch-geometric && pip install git+https://github.com/rusty1s/pytorch_geometric.git")
+			exit()
+		assert use_mincut
+		attr_results=explain_nodes(G, model, task, attr_results['cluster_assignments'], node_idx=None, epochs=epochs, lr=lr)
 	return attr_results
 
 def visualize_(predictions_save_path,

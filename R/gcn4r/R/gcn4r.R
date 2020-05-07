@@ -359,6 +359,12 @@ interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradien
   return(attr.list)
 }
 
+extract.motifs<-function(gnn.model){
+  parameters<-extract.parameters(gnn.model)
+  parameters$mode<-"gnn_explainer"
+  attributions<-do.call(GCN4R$api$interpret_model, parameters)
+}
+
 ####################### OLD/DEPRECATED #######################
 
 train_model<- function (learning_rate=1e-4,

@@ -16,6 +16,7 @@ reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::conda_list(conda = "auto")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
+GCN4R$api
 ```
 
 
@@ -93,5 +94,8 @@ attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
 attributions<-interpret.predictors(cluster.model)
 ```
 
+```{r}
+attributions<-extract.motifs(cluster.model)
+```
 
 
