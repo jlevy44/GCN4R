@@ -10,6 +10,9 @@
   library(htmlwidgets)
   library(magick)
   library(Matrix)
+  library(gridExtra)
+  library(ggplot2)
+  library(data.table)
 }
 
 ####################### IMPORT #######################
@@ -71,17 +74,20 @@ to.igraph <- function(A,X,directed=T){
   return(graph_from_data_frame(A, directed = directed, vertices = X))
 }
 
-plot.net <- function(net,group=NULL,title="") {
+plot.net <- function(net,group=NULL,title="",layout=NULL) {
   V(net)$size <- 7
   if (!is.null(group)){
     V(net)$color <- group
   }
-  plot(net, vertex.label='', main=title)
+  if (is.null(layout)){
+    layout<-layout_with_fr(net)
+  }
+  plot(net, vertex.label='', main=title, layout=layout)
 }
 
-visualize.net<- function(net.list, covar=NULL) {
+visualize.net<- function(net.list, covar=NULL, layout=NULL) {
   net<-to.igraph(net.list$A,net.list$X)
-  plot.net(net,covar)
+  plot.net(net,covar,layout=layout)
 }
 
 ####################### SET PARAMETERS #######################
@@ -145,9 +151,10 @@ add.graph.info <- function(parameters,net.list,prediction_column=-1L){
   return(parameters)
 }
 
-build.model.class <- function(parameters,net.list,class.name,prediction_column=-1L){
+build.model.class <- function(parameters,net.list,class.name,prediction_column=-1L, loss.log=NULL){
   fit.model<-list(parameters=parameters,
-                  results=return.results(parameters,net.list,prediction_column=prediction_column,task=parameters$task))
+                  results=return.results(parameters,net.list,prediction_column=prediction_column,task=parameters$task),
+                  loss.log=loss.log)
   fit.model<-structure(fit.model,class=c("gnn.model",class.name))
   return(fit.model)
 }
@@ -155,46 +162,46 @@ build.model.class <- function(parameters,net.list,class.name,prediction_column=-
 cluster.model.fit<- function (parameters, net.list){
   parameters$task<-"clustering"
   parameters<-add.graph.info(parameters,net.list)
-  do.call(GCN4R$api$train_model_, parameters)
+  loss.log<-do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
   parameters$predict<-T
-  fit.model<-build.model.class(parameters,net.list,"gnn.cluster.model")
+  fit.model<-build.model.class(parameters,net.list,"gnn.cluster.model",loss.log=loss.log)
   return(fit.model)
 }
 
 classify.model.fit<- function (parameters, net.list, prediction_column=-1L){
   parameters$task<-"classification"
   parameters<-add.graph.info(parameters,net.list,prediction_column)
-  do.call(GCN4R$api$train_model_, parameters)
+  loss.log<-do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
-  fit.model<-build.model.class(parameters,net.list,"gnn.classify.model",prediction_column)
+  fit.model<-build.model.class(parameters,net.list,"gnn.classify.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
 
 regression.model.fit<- function (parameters, net.list, prediction_column=-1L){
   parameters$task<-"regression"
   parameters<-add.graph.info(parameters,net.list,prediction_column)
-  do.call(GCN4R$api$train_model_, parameters)
+  loss.log<-do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
-  fit.model<-build.model.class(parameters,net.list,"gnn.regress.model",prediction_column)
+  fit.model<-build.model.class(parameters,net.list,"gnn.regress.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
 
 link.prediction.model.fit<- function (parameters, net.list){
   parameters$task<-"link_prediction"
   parameters<-add.graph.info(parameters,net.list)
-  do.call(GCN4R$api$train_model_, parameters)
+  loss.log<-do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
-  fit.model<-build.model.class(parameters,net.list,"gnn.link.model")
+  fit.model<-build.model.class(parameters,net.list,"gnn.link.model",loss.log=loss.log)
   return(fit.model)
 }
 
 generative.model.fit<- function (parameters, net.list){
   parameters$task<-"generation"
   parameters<-add.graph.info(parameters,net.list)
-  do.call(GCN4R$api$train_model_, parameters)
+  loss.log<-do.call(GCN4R$api$train_model_, parameters)
   flush.stdout()
-  fit.model<-build.model.class(parameters,net.list,"gnn.generative.model")
+  fit.model<-build.model.class(parameters,net.list,"gnn.generative.model",loss.log=loss.log)
   return(fit.model)
 }
 
@@ -241,6 +248,11 @@ extract.clusters<- function(gnn.model) {
 
 extract.embeddings<- function(gnn.model) {
   return(gnn.model$results$z)
+}
+
+make.layout<- function(z) {
+  set.seed(42)
+  return(prcomp(z, scale = T)$x[,c(1,2)])
 }
 
 extract.parameters<- function(gnn.model) {
@@ -291,6 +303,40 @@ plot.gnn.link.model <- function(gnn.model) {
 plot.gnn.generative.model <- function(gnn.model) {
   cl<-NULL
   plot.nets(gnn.model,cl)
+}
+
+plot.diagnostics <- function(gnn.model){
+  loss.log<-py_to_r(gnn.model$loss.log$loss_log)
+  loss.fns<-names(loss.log)
+  loss.fns<-loss.fns[loss.fns!="epoch"]
+  melt(loss.log,id.vars="epoch")
+  ggplot(data=melt(loss.log,id.vars="epoch"), aes(x=epoch, y=value)) +
+    geom_line() +
+    facet_grid(rows = vars(variable), scales = "free")
+}
+
+####################### SIMULATION #######################
+
+simulate.networks <- function(gnn.model,nsim=100) {
+  results<-extract.results(gnn.model)
+  threshold<-results$threshold
+  X<-NULL
+  parameters<-gnn.model$parameters
+  parameters$task<-"generation"
+  sim.graphs<-list()
+  embeddings<-list()
+  for (i in 1:nsim) {
+    parameters$random_seed<-i
+    invisible(py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters)))
+    A<-res$A
+    embeddings[[i]]<-res$z
+    A.adj<-matrix(as.integer(A>threshold),nrow=nrow(A))
+    A<-get.edgelist(graph.adjacency(A.adj))
+    sim.graphs[[i]]<-to.igraph(A,X)
+  }
+  sim.graphs<-list(networks=sim.graphs,
+                   embeddings=embeddings)
+  return(sim.graphs)
 }
 
 ####################### INTERPRET RESULTS #######################
@@ -528,11 +574,6 @@ sim.and.plot <- function(nv=c(32, 32, 32, 32),
   return(net.simu)
 
 }
-
-
-
-
-
 
 to.networkx <- function(A) {
   return(GCN4R$api$nx$from_edgelist(A))

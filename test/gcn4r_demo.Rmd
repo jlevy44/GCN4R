@@ -2,7 +2,9 @@
 title: "GCN4R_demo"
 author: "Joshua Levy"
 date: "4/28/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -23,7 +25,9 @@ GCN4R$api
 # Load data
 # fix convergence or load new data
 ```{r}
+# alternative data
 physician.files<-c("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv")
+# load lawyer data
 net.list<-generate.net.list("A_lawyer.csv","X_lawyer.csv") 
 net.list
 ```
@@ -31,6 +35,7 @@ net.list
 # Visualize data
 
 ```{r}
+# Something is wrong with visualize net, needs debug, see below scripts for more info on plotting actual true graph
 visualize.net(net.list)
 ```
 
@@ -69,6 +74,11 @@ parameters<-update.parameters(parameters,new.parameters)
 cluster.model<-cluster.model.fit(parameters, net.list)
 ```
 
+# Plot Objective Convergence
+```{r}
+plot.diagnostics(cluster.model)
+```
+
 # Summarize Results
 ```{r}
 results<-extract.results(cluster.model)
@@ -101,13 +111,41 @@ cluster.model.2<-cluster.model.fit(parameters.2, net.list)
 Please run: pip install git+https://github.com/rusty1s/pytorch_geometric.git for motif visualization:
 ```{r}
 motif.graphs<-extract.motifs(cluster.model.2)
-#motif.graphs
 cl<-extract.clusters(cluster.model.2)
 vis.motif(motif.graphs,61,cl,threshold=0.4)
 vis.motif(motif.graphs,8,cl,threshold=0.4)
 vis.motif(motif.graphs,5,cl,threshold=0.5, weight.scaling.factor=1.5)
 vis.motif(motif.graphs,71,cl,threshold=0.2)
+```
+# Matching graph embeddings to multivariate normal distribution
+```{r}
+parameters.3<-update.parameters(parameters,list(ae_type="ARGVA",
+                                                lambda_kl=1e-2))
+embedding.model<-cluster.model.fit(parameters.3, net.list)
+z<-extract.embeddings(embedding.model)
+cl<-extract.clusters(embedding.model)
+lo<-make.layout(z)
+G.true<-extract.graphs(embedding.model)$A.true
+plot.net(G.true,cl,layout=lo)
+```
+# Plot diagnostics with added variational KL divergence loss
+```{r}
+plot.diagnostics(embedding.model)
+```
+
+
+# Simulate Networks from Variational Graph Auto-Encoder model
+```{r}
+sim.graphs<-simulate.networks(embedding.model,nsim=30)
+cl<-extract.clusters(embedding.model)
+for (i in c(1,2,29,30)){
+  net<-sim.graphs$networks[[i]]
+  embedding<-sim.graphs$embeddings[[i]]
+  lo<-make.layout(embedding)
+  plot.net(net,cl,layout = lo)
+}
 
 ```
+
 
 

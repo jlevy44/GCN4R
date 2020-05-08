@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import random
 import pysnooper
+from collections import defaultdict
 sns.set(style='white')
 
 
@@ -100,7 +101,7 @@ class ModelTrainer:
 		return self.loss_fn(y_pred,y_true)
 
 	# @pysnooper.snoop()
-	def calc_loss(self, x, edge_index, val_edge_index=None, y=None, idx_df=None):
+	def calc_loss(self, x, edge_index, val_edge_index=None, y=None, idx_df=None, loss_log=False):
 		output=self.model.encoder(x, edge_index)
 		if not self.use_mincut:
 			z = output['z']
@@ -129,6 +130,8 @@ class ModelTrainer:
 		loss = losses['recon']
 		for k in ['adv','kl','recon','cluster','pred']:
 			loss+=self.lambdas.get(k,0.)*losses[k]
+			if loss_log:
+				self.loss_log[k].append(losses[k].item() if isinstance(losses[k],torch.FloatTensor) else 0. )
 		# if self.model.encoder.variational:
 		#     loss = loss + (1 / data.num_nodes) * model.kl_loss()
 		return loss #self.loss_fn(y_pred, y_true)
@@ -237,7 +240,7 @@ class ModelTrainer:
 		if torch.cuda.is_available():
 			x,edge_index = x.cuda(),edge_index.cuda()
 
-		loss = self.calc_loss(x,edge_index,val_edge_index,G.y,G.idx_df.loc[G.idx_df['set']=='val'] if self.model.encoder.prediction_task else None) # .view(-1,1)
+		loss = self.calc_loss(x,edge_index,val_edge_index,G.y,G.idx_df.loc[G.idx_df['set']=='val'] if self.model.encoder.prediction_task else None,loss_log=True) # .view(-1,1)
 		val_loss=loss.item()
 		print("Epoch {} Val Loss:{}".format(epoch,val_loss))
 
@@ -282,10 +285,7 @@ class ModelTrainer:
 			self.model.encoder.toggle_kmeans()
 			output = self.model.encoder(x, edge_index)#[0]
 			self.model.encoder.toggle_kmeans()
-			if not self.model.encoder.variational:
-				z,s=output['z'],output['s']
-			else:
-				z,s=output['mu'],output['s']
+			z,s=output['z'],output['s']
 			if not self.model.encoder.prediction_task:
 				y=0.
 			else:
@@ -346,6 +346,8 @@ class ModelTrainer:
 		# choose model with best f1
 		self.train_losses = []
 		self.val_losses = []
+		self.epochs = []
+		self.loss_log = defaultdict(list)
 		for epoch in range(self.n_epoch):
 			if epoch >= self.epoch_cluster:
 				self.add_cluster_loss=True
@@ -360,6 +362,8 @@ class ModelTrainer:
 			self.train_losses.append(train_loss)
 			val_loss = self.val_loop(epoch,G, print_val_confusion=False, save_predictions=False)
 			val_time=time.time()-current_time
+			self.loss_log['epoch'].append(epoch)
+			self.loss_log['val_loss'].append(val_loss)
 			if self.add_cluster_loss and self.add_kl:
 				self.val_losses.append(val_loss)
 			if False and verbose and not (epoch % print_every):
@@ -373,6 +377,7 @@ class ModelTrainer:
 				best_model = copy.deepcopy(self.model.state_dict())
 		if save_model:
 			self.model.load_state_dict(best_model)
+		self.loss_log=dict(loss_log=pd.DataFrame(dict(self.loss_log)),best_epoch=best_epoch)
 		return self, min_val_loss, best_epoch
 
 	def plot_train_val_curves(self, save_file=None):

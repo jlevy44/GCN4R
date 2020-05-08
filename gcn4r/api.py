@@ -198,6 +198,7 @@ def get_data_model(custom_dataset,
 					):
 	assert custom_dataset in ['lawyer', 'physician', 'none']
 	assert task in ['link_prediction', 'generation', 'clustering', 'embedding', 'classification', 'regression']
+	print("Random Seed:",random_seed)
 	torch.manual_seed(random_seed)
 	np.random.seed(random_seed)
 	random.seed(random_seed)
@@ -382,6 +383,8 @@ def train_model_(#inputs_dir,
 		trainer.fit(G)
 
 		torch.save(trainer.model.state_dict(),model_save_loc)
+
+		return trainer.loss_log
 
 	else:
 
