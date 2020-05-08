@@ -8,6 +8,11 @@ import networkx as nx
 from sklearn.preprocessing import MinMaxScaler
 from scipy.sparse import csr_matrix
 from gcn4r.models import ExplainerModel
+from torch_geometric.data import Data
+try:
+	from torch_geometric.utils import k_hop_subgraph, to_networkx
+except:
+	pass
 
 def captum_interpret_graph(G, model, use_mincut, target=0, method='integrated_gradients'):
 	# assert use_mincut , "Interpretations only work for min-cut pooling for now"
@@ -102,7 +107,32 @@ def create_explainer(model=None, epochs=100, lr=0.01):
 	from torch_geometric.nn.models.gnn_explainer import GNNExplainer
 	return GNNExplainer(model, epochs=epochs, lr=lr)
 
-def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01):
+def explainer2graph(i,explainer,edge_mask,edge_index,threshold,y):
+	assert edge_mask.size(0) == edge_index.size(1)
+	# Only operate on a k-hop subgraph around `node_idx`.
+	subset, edge_index, hard_edge_mask = k_hop_subgraph(
+		i, explainer.__num_hops__(), edge_index, relabel_nodes=True,
+		num_nodes=None, flow=explainer.__flow__())
+
+	edge_mask = edge_mask[hard_edge_mask]
+
+	if threshold is not None:
+		edge_mask = (edge_mask >= threshold).to(torch.float)
+
+	if y is None:
+		y = torch.zeros(edge_index.max().item() + 1,
+						device=edge_index.device)
+	else:
+		y = y[subset].to(torch.float) / y.max().item()
+
+	data = Data(edge_index=edge_index, att=edge_mask, y=y,
+				num_nodes=y.size(0)).to('cpu')
+	G = to_networkx(data, node_attrs=['y'], edge_attrs=['att'])
+	mapping = {k: i for k, i in enumerate(subset.tolist())}
+	G = nx.relabel_nodes(G, mapping)
+	return G
+
+def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold=None):
 	assert task in ['clustering','classification']
 	if task=='clustering':
 		key='s'
@@ -116,8 +146,10 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01):
 		node_idx = [node_idx]
 	model=ExplainerModel(model,key)
 	explainer=create_explainer(model,epochs,lr)
-	plts={}
+	subgraphs={}
 	for i in node_idx:
 		node_feat_mask, edge_mask = explainer.explain_node(i, x, edge_index)
-		plts[i]=explainer.visualize_subgraph(i, edge_index, edge_mask, y=y)
-	return plts
+		subgraphs[i]=explainer2graph(i,explainer,edge_mask,edge_index,threshold,y)
+		# explainer.visualize_subgraph(i, edge_index, edge_mask, y=torch.tensor(y.flatten()).long(),threshold=threshold)
+		# plts[i]=fig
+	return subgraphs

@@ -422,12 +422,16 @@ def interpret_model(custom_dataset='none',
 					method='integrated_gradients',
 					epochs=100,
 					lr=0.01,
+					node_idx=None,
+					threshold=None,
 					**kwargs):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
 	assert mode in ['captum','attention','gnn_explainer']
 	if mode=='attention':
 		assert encoder_base=='GATConv'
 		encoder_base='GATConvInterpret'
+	elif mode=='gnn_explainer':
+		assert encoder_base=='GCNConv'
 	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
 													task,
 													random_seed,
@@ -473,7 +477,7 @@ def interpret_model(custom_dataset='none',
 			print("Please reinstall torch_geometric via the following command: pip uninstall torch-geometric && pip install git+https://github.com/rusty1s/pytorch_geometric.git")
 			exit()
 		assert use_mincut
-		attr_results=explain_nodes(G, model, task, attr_results['cluster_assignments'], node_idx=None, epochs=epochs, lr=lr)
+		attr_results=explain_nodes(G, model, task, attr_results['cluster_assignments'], node_idx=node_idx, epochs=epochs, lr=lr, threshold=threshold)
 	return attr_results
 
 def visualize_(predictions_save_path,

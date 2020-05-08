@@ -295,6 +295,31 @@ plot.gnn.generative.model <- function(gnn.model) {
 
 ####################### INTERPRET RESULTS #######################
 
+vis.weighted.graph<-function(weight_matrix, cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL) {
+  set.seed(42)
+  c_scale <- colorRamp(cscale.colors)
+  weight_matrix<-(weight_matrix+t(weight_matrix))/2
+  if (!is.null(threshold)){
+    weight_matrix[(weight_matrix<threshold)]<-0.
+  }
+  net.true<-graph_from_adjacency_matrix(weight_matrix, mode="upper", weighted=TRUE)
+  if (!is.null(threshold)){
+    isolated.nodes = which(degree(net.true)==0)
+    net.true = delete.vertices(net.true, isolated.nodes)
+  }
+  E(net.true)$edge.curved=0.
+  V(net.true)$color <- cl
+  net.true<-simplify(net.true)
+  V(net.true)$size <- 5
+  weight<-E(net.true)$weight
+  E(net.true)$width<-weight/max(weight)*weight.scaling.factor
+  E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+  l <- layout_with_fr(net.true)
+  l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
+  plot(net.true, layout=l*1., rescale=F, edge.curved=0., vertex.label="", main="")
+  return(weight_matrix)
+}
+
 visualize.attention<-function(gnn.model,weight.scaling.factor=20.){
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"attention"
@@ -309,27 +334,11 @@ visualize.attention<-function(gnn.model,weight.scaling.factor=20.){
   flush.stdout()
   weight_matrices<-GCN4R$interpret$return_attention_weights(attribution,T)
   # net.orig<-#extract.graphs(gnn.model,directed=F)$A.true
-  c_scale <- colorRamp(c('grey','red'))
+
 
   for (i in 1:length(weight_matrices)) {
-
     weight_matrix<-as.matrix(weight_matrices[[i]])
-    weight_matrix<-(weight_matrix+t(weight_matrix))/2
-    weight_matrices[[i]]<-weight_matrix
-    net.true<-graph_from_adjacency_matrix(weight_matrix, mode="upper", weighted=TRUE)
-    # E(net.true)$edge.color<-weight/max(weight)*weight.scaling.factor
-    E(net.true)$edge.curved=0.
-    V(net.true)$color <- cl
-    net.true<-simplify(net.true)
-    V(net.true)$size <- 5
-    # <-weight
-    weight<-E(net.true)$weight
-    E(net.true)$width<-weight/max(weight)*weight.scaling.factor
-    E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
-    l <- layout_with_fr(net.true)
-    l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
-    plot(net.true, layout=l*1., rescale=F, edge.curved=0., vertex.label="", main="")
-
+    weight_matrices[[i]]<-vis.weighted.graph(weight_matrix,cl,weight.scaling.factor)
   }
   return(weight_matrices)
 }
@@ -360,9 +369,23 @@ interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradien
 }
 
 extract.motifs<-function(gnn.model){
+  nx<-import('networkx')
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"gnn_explainer"
   attributions<-do.call(GCN4R$api$interpret_model, parameters)
+  for (i in 1:length(attributions)){
+    attributions[[i]]<-as.matrix(nx$convert_matrix$to_numpy_matrix(attributions[[i]],weight='att'))
+  }
+  return(attributions)
+}
+
+get.motif<-function(attributions,i){
+  return(attributions[[i]])
+}
+
+vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL){
+  motif<-get.motif(attributions,i)
+  vis.weighted.graph(motif,cl, weight.scaling.factor, cscale.colors, threshold)
 }
 
 ####################### OLD/DEPRECATED #######################
