@@ -148,6 +148,7 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold
 	explainer=create_explainer(model,epochs,lr)
 	subgraphs={}
 	for i in node_idx:
+		i=int(i)
 		node_feat_mask, edge_mask = explainer.explain_node(i, x, edge_index)
 		subgraphs[i]=explainer2graph(i,explainer,edge_mask,edge_index,threshold,y)
 		# explainer.visualize_subgraph(i, edge_index, edge_mask, y=torch.tensor(y.flatten()).long(),threshold=threshold)

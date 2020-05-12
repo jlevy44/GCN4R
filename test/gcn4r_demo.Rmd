@@ -14,8 +14,8 @@ library(gcn4r)
 
 # Import Library, link anaconda to R studio
 ```{r}
-reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::conda_list(conda = "auto")
+reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
 GCN4R$api
@@ -112,10 +112,10 @@ Please run: pip install git+https://github.com/rusty1s/pytorch_geometric.git for
 ```{r}
 motif.graphs<-extract.motifs(cluster.model.2)
 cl<-extract.clusters(cluster.model.2)
-vis.motif(motif.graphs,61,cl,threshold=0.4)
-vis.motif(motif.graphs,8,cl,threshold=0.4)
-vis.motif(motif.graphs,5,cl,threshold=0.5, weight.scaling.factor=1.5)
-vis.motif(motif.graphs,71,cl,threshold=0.2)
+vis.motif(motif.graphs,61L,cl,threshold=0.4)
+vis.motif(motif.graphs,8L,cl,threshold=0.4)
+vis.motif(motif.graphs,5L,cl,threshold=0.5, weight.scaling.factor=1.5)
+vis.motif(motif.graphs,71L,cl,threshold=0.2)
 ```
 # Matching graph embeddings to multivariate normal distribution
 ```{r}
