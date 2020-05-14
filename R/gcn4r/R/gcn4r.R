@@ -420,13 +420,40 @@ extract.motifs<-function(gnn.model){
   parameters$mode<-"gnn_explainer"
   attributions<-do.call(GCN4R$api$interpret_model, parameters)
   for (i in 1:length(attributions)){
-    attributions[[i]]<-as.matrix(nx$convert_matrix$to_numpy_matrix(attributions[[i]],weight='att'))
+    attributions[[i]]<-list(feature_scores=attributions[[i]]$node_feat,G=as.matrix(nx$convert_matrix$to_numpy_matrix(attributions[[i]]$explain_graph,weight='att')))
   }
   return(attributions)
 }
 
 get.motif<-function(attributions,i){
-  return(attributions[[i]])
+  return(attributions[[i]]$G)
+}
+
+get.feat.importance.scores<-function(attributions,i){
+  return(attributions[[i]]$feature_scores)
+}
+
+build.importance.matrix<-function(attributions,cl=NULL){
+  N<-length(attributions)
+  feature.scores<-c()
+  for (attribution in attributions){
+    feature.scores<-c(feature.scores,attribution$feature_scores)
+  }
+  attribution<-as.data.frame(matrix(feature.scores,nrow=N))
+  rownames(attribution)<-1:N
+  row_annot=NULL
+  if (!is.null(cl) & length(cl)==N){
+    row_annot<-data.frame(cluster=as.factor(cl))
+
+    colnames(attribution)<-1:ncol(attribution)
+
+    rownames(row_annot) <- rownames(attribution)
+    colnames(row_annot) <- c("cluster")
+
+  }
+
+  pheatmap(attribution,annotation_row=row_annot)
+  return(attribution)
 }
 
 vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL){
