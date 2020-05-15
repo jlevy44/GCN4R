@@ -324,6 +324,7 @@ def train_model_(#inputs_dir,
 				initialize_spectral=True,
 				kmeans_use_probs=False,
 				prediction_column=-1,
+				animation_save_file='',
 				**kwargs
 				):
 
@@ -365,6 +366,7 @@ def train_model_(#inputs_dir,
 													prediction_column=prediction_column
 													)
 
+
 	trainer=ModelTrainer(model,
 						n_epochs,
 						optimizer_opts,
@@ -376,13 +378,18 @@ def train_model_(#inputs_dir,
 						lambdas=lambdas,
 						task=task,
 						use_mincut=use_mincut,
-						kmeans_use_probs=kmeans_use_probs)
+						kmeans_use_probs=kmeans_use_probs,
+						return_animation=(True if animation_save_file else False))
 
 	if not predict:
 
 		trainer.fit(G)
 
 		torch.save(trainer.model.state_dict(),model_save_loc)
+
+		if trainer.return_animation:
+			from functools import reduce
+			pd.DataFrame(np.stack(trainer.Z),index=reduce(lambda x,y: x+y, [[i]*X.shape[0] for i in range(n_epochs)])).to_pickle(animation_save_file)
 
 		return trainer.loss_log
 

@@ -123,7 +123,8 @@ generate_default_parameters <- function() {
                    task='clustering',
                    use_mincut=F,
                    kmeans_use_probs=F,
-                   prediction_column=-1L)
+                   prediction_column=-1L,
+                   animation_save_file="")
   class(parameters)<-"parameters"
   return(parameters)
 

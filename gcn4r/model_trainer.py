@@ -51,7 +51,8 @@ class ModelTrainer:
 						task='link_prediction',
 						use_mincut=False,
 						print_clusters=True,
-						kmeans_use_probs=False):
+						kmeans_use_probs=False,
+						return_animation=False):
 
 		self.model = model
 		self.kmeans_use_probs=kmeans_use_probs
@@ -85,6 +86,8 @@ class ModelTrainer:
 		self.print_clusters=print_clusters
 		self.add_kl=False
 		self.kl_warmup=kl_warmup
+		self.Z=[]
+		self.return_animation=return_animation
 
 
 	def establish_clusters(self, x, edge_index):
@@ -112,6 +115,9 @@ class ModelTrainer:
 		# print(z.shape)
 		if not isinstance(val_edge_index, type(None)):
 			edge_index=val_edge_index
+		else:
+			if self.return_animation:
+				self.Z.append(z.detach().cpu().numpy())
 		losses=dict(cluster=0.,
 					adv=0.,
 					kl=0.,
