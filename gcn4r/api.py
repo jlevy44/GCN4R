@@ -389,7 +389,9 @@ def train_model_(#inputs_dir,
 
 		if trainer.return_animation:
 			from functools import reduce
-			pd.DataFrame(np.stack(trainer.Z),index=reduce(lambda x,y: x+y, [[i]*X.shape[0] for i in range(n_epochs)])).to_pickle(animation_save_file)
+			animation=pd.DataFrame(np.vstack(trainer.Z))
+			animation["epoch"]=np.array(list(reduce(lambda x,y: x+y, [[i]*X.shape[0] for i in range(n_epochs)])))
+			animation.to_pickle(animation_save_file)
 
 		return trainer.loss_log
 

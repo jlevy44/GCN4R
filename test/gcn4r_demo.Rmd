@@ -145,8 +145,17 @@ for (i in c(1,2,29,30)){
   lo<-make.layout(embedding)
   plot.net(net,cl,layout = lo)
 }
-
 ```
+
+```{r}
+parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
+animate.model<-cluster.model.fit(parameters.4, net.list)
+pandas<-import('pandas')
+py <- import_builtins()
+animation<-pandas$read_pickle("animation.pkl")
+animation # finish t
+```
+
 
 
 
