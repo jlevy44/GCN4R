@@ -3,8 +3,8 @@ title: "GCN4R_demo"
 author: "Joshua Levy"
 date: "4/28/2020"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -150,12 +150,5 @@ for (i in c(1,2,29,30)){
 ```{r}
 parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
 animate.model<-cluster.model.fit(parameters.4, net.list)
-pandas<-import('pandas')
-py <- import_builtins()
-animation<-pandas$read_pickle("animation.pkl")
-animation # finish t
+animate.plot(animate.model,res=200)
 ```
-
-
-
-

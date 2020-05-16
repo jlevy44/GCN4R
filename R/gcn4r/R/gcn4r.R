@@ -13,6 +13,10 @@
   library(gridExtra)
   library(ggplot2)
   library(data.table)
+  library(gganimate)
+  library(ggnetwork)
+  library(png)
+  library(gifski)
 }
 
 ####################### IMPORT #######################
@@ -462,6 +466,33 @@ vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c(
   vis.weighted.graph(motif,cl, weight.scaling.factor, cscale.colors, threshold)
 }
 
+####################### MISC #######################
+
+animate.plot<-function(animate.model,gif_file="animate.gif", delay=0.2, res = 92){
+  pandas<-import('pandas')
+  py <- import_builtins()
+  animation<-pandas$read_pickle(animate.model$parameters$animation_save_file)
+  animation.layouts<-data.frame(prcomp(animation[,-ncol(animation)], scale = F)$x[,c(1,2)])
+  animation.layouts$epoch<-animation$epoch
+  cl<-extract.clusters(animate.model)
+  net<-extract.graphs(animate.model)$A.true
+  V(net)$color <- cl
+  make_plot<-function(){
+    lapply(0:max(animation.layouts$epoch), function(i){
+      n<-ggnetwork(net,layout=as.matrix(animation.layouts[animation.layouts$epoch==i,1:2]))
+      n$color<-as.character(n$color)
+      p<-ggplot(n, aes(x = x, y = y, xend = xend, yend = yend)) +
+        geom_edges(aes(), color = "grey50") +
+        geom_nodes(aes(color = color)) +
+        theme_blank()
+      print(p)
+    })
+  }
+  gif_file <- save_gif(make_plot(), gif_file = gif_file, width = 800, height = 800, res = res)
+  utils::browseURL(gif_file)
+}
+
+
 ####################### OLD/DEPRECATED #######################
 
 train_model<- function (learning_rate=1e-4,
@@ -542,6 +573,8 @@ visualize <- function(predictions_save_path='predictions.pkl',
                        output_fname,
                        size)
 }
+
+
 
 
 
