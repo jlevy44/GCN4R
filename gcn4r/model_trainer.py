@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 import copy
 from sklearn.metrics import classification_report, roc_curve, roc_auc_score, confusion_matrix
 from gcn4r.schedulers import Scheduler
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import random
 import pysnooper
+from sklearn.metrics import roc_auc_score
 from collections import defaultdict
 sns.set(style='white')
 
@@ -307,15 +309,46 @@ class ModelTrainer:
 			y_pred=np.hstack((self.model.decode(z,test_pos_edge_index).numpy().flatten(),self.model.decode(z,test_neg_edge_index).numpy().flatten()))
 			y_test=np.hstack((np.ones(test_pos_edge_index.shape[1]),np.zeros(test_neg_edge_index.shape[1])))
 
+			print("Link Prediction Diagnostics:")
+
 			threshold,confusion=self.calc_best_confusion(y_pred, y_test)
 
-			print("AUC={}, threshold={}".format(roc_auc_score(y_test,y_pred),threshold))
-
 			print(confusion)
+			auc=roc_auc_score(y_test,y_pred)
+			print("AUC={}, threshold={}".format(auc,threshold))
 
 			z=z.numpy()
 
-		return G,z,cl,c,A,threshold,s,y
+			performance=auc
+
+			if self.task=='clustering':
+				from collections import Counter
+				from sklearn.metrics import calinski_harabasz_score
+				print("Clustering Diagnostics:")
+				print(Counter(cl))
+				performance=calinski_harabasz_score(z,cl)
+				print("Calinski Harabasz Score:",performance)
+				# auc=roc_auc_score(cl,F.softmax(s,dim=1),multi_class="ovo",average="macro")
+				# print("AUC:",auc)
+
+
+			elif self.task=="classification":
+				from sklearn.metrics import classification_report
+				print("Classification Diagnostics:")
+				print(classification_report(G.y.numpy(),y))
+				auc=roc_auc_score(G.y.numpy(),y,multi_class="ovo",average="macro")
+				print("AUC:",auc)
+				performance=auc
+
+			elif self.task=='regression':
+				from sklearn.metrics import r2_score, mean_absolute_error
+				print("Regression Diagnostics:")
+				r2=r2_score(G.y.numpy(),y)
+				print("R2:",r2)
+				print("MAE:",mean_absolute_error(G.y.numpy(),y))
+				performance=r2
+
+		return G,z,cl,c,A,threshold,s,y,performance
 
 	def fit(self, G, verbose=False, print_every=10, save_model=True, plot_training_curves=False, plot_save_file=None, print_val_confusion=True, save_val_predictions=True):
 		"""Fits the segmentation or classification model to the patches, saving the model with the lowest validation score.

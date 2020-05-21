@@ -17,6 +17,7 @@
   library(ggnetwork)
   library(png)
   library(gifski)
+  library(centiserve)
 }
 
 ####################### IMPORT #######################
@@ -94,6 +95,10 @@ visualize.net<- function(net.list, covar=NULL, layout=NULL) {
   plot.net(net,covar,layout=layout)
 }
 
+visualize.net2<- function(net.list, covar=NULL, layout=NULL) {
+  vis.weighted.graph(as.matrix(net.list$A[,-1]),cl=net.list$X[,covar], cscale.colors=c("black","grey"))
+}
+
 ####################### SET PARAMETERS #######################
 
 generate_default_parameters <- function() {
@@ -147,7 +152,8 @@ flush.stdout <- function(){
 return.results<- function(parameters, net.list, prediction_column=-1L, task="clustering") {
   parameters$task<-task
   parameters<-add.graph.info(parameters,net.list)
-  do.call(GCN4R$api$train_model_, parameters)
+  output<-py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters))
+  return(list(output=output,res=res))
 }
 
 add.graph.info <- function(parameters,net.list,prediction_column=-1L){
@@ -157,94 +163,113 @@ add.graph.info <- function(parameters,net.list,prediction_column=-1L){
 }
 
 build.model.class <- function(parameters,net.list,class.name,prediction_column=-1L, loss.log=NULL){
+  results.returned<-return.results(parameters,net.list,prediction_column=prediction_column,task=parameters$task)
   fit.model<-list(parameters=parameters,
-                  results=return.results(parameters,net.list,prediction_column=prediction_column,task=parameters$task),
-                  loss.log=loss.log)
+                  results=results.returned$res,
+                  loss.log=loss.log,
+                  diagnostic.text=results.returned$output)
   fit.model<-structure(fit.model,class=c("gnn.model",class.name))
   return(fit.model)
 }
 
-cluster.model.fit<- function (parameters, net.list){
+cluster.model.fit<- function (parameters, net.list, verbose=F){
   parameters$task<-"clustering"
   parameters<-add.graph.info(parameters,net.list)
-  loss.log<-do.call(GCN4R$api$train_model_, parameters)
-  flush.stdout()
+  log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
+  if (verbose){
+    import_builtins()$print(log)
+  }
   parameters$predict<-T
   fit.model<-build.model.class(parameters,net.list,"gnn.cluster.model",loss.log=loss.log)
   return(fit.model)
 }
 
-classify.model.fit<- function (parameters, net.list, prediction_column=-1L){
+classify.model.fit<- function (parameters, net.list, prediction_column=-1L, verbose=F){
   parameters$task<-"classification"
   parameters<-add.graph.info(parameters,net.list,prediction_column)
-  loss.log<-do.call(GCN4R$api$train_model_, parameters)
-  flush.stdout()
+  log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
+  if (verbose){
+    import_builtins()$print(log)
+  }
   fit.model<-build.model.class(parameters,net.list,"gnn.classify.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
 
-regression.model.fit<- function (parameters, net.list, prediction_column=-1L){
+regression.model.fit<- function (parameters, net.list, prediction_column=-1L, verbose=F){
   parameters$task<-"regression"
   parameters<-add.graph.info(parameters,net.list,prediction_column)
-  loss.log<-do.call(GCN4R$api$train_model_, parameters)
-  flush.stdout()
+  log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
+  if (verbose){
+    import_builtins()$print(log)
+  }
   fit.model<-build.model.class(parameters,net.list,"gnn.regress.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
 
-link.prediction.model.fit<- function (parameters, net.list){
+link.prediction.model.fit<- function (parameters, net.list, verbose=F){
   parameters$task<-"link_prediction"
   parameters<-add.graph.info(parameters,net.list)
-  loss.log<-do.call(GCN4R$api$train_model_, parameters)
-  flush.stdout()
+  log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
+  if (verbose){
+    import_builtins()$print(log)
+  }
   fit.model<-build.model.class(parameters,net.list,"gnn.link.model",loss.log=loss.log)
   return(fit.model)
 }
 
-generative.model.fit<- function (parameters, net.list){
+generative.model.fit<- function (parameters, net.list, verbose=F){
   parameters$task<-"generation"
   parameters<-add.graph.info(parameters,net.list)
-  loss.log<-do.call(GCN4R$api$train_model_, parameters)
-  flush.stdout()
+  log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
+  if (verbose){
+    import_builtins()$print(log)
+  }
   fit.model<-build.model.class(parameters,net.list,"gnn.generative.model",loss.log=loss.log)
   return(fit.model)
 }
 
 ####################### SUMMARIZE MODEL (RUN PREDICTION) #######################
 
-summary.gnn.cluster.model<- function(gnn.model){
-  cl<-extract.clusters(gnn.model)
-  z<-extract.embeddings(gnn.model)
-  cluster.breakdown<-table(cl)
-  print(paste("Extracted",toString(length(cluster.breakdown)),"clusters:"))
-  print(cluster.breakdown)
-  print(paste("Extracted low dimensional embeddings of shape",toString(nrow(z)),toString(ncol(z))))
-  print("Clustering Vector:")
-  print(cl)
-  print("Fuzzy Cluster Assignment Matrix:")
-  print(gnn.model$results$s)
-  print("Generated and Real Networks:")
-  print(extract.graphs(gnn.model))
+summary.gnn.cluster.model<- function(gnn.model, additional.info=F){
+  import_builtins()$print(gnn.model$diagnostic.text)
+  if (additional.info){
+    cl<-extract.clusters(gnn.model)
+    z<-extract.embeddings(gnn.model)
+    cluster.breakdown<-table(cl)
+    print(paste("Extracted",toString(length(cluster.breakdown)),"clusters:"))
+    print(cluster.breakdown)
+    print(paste("Extracted low dimensional embeddings of shape",toString(nrow(z)),toString(ncol(z))))
+    print("Clustering Vector:")
+    print(cl)
+    print("Fuzzy Cluster Assignment Matrix:")
+    print(gnn.model$results$s)
+    print("Generated and Real Networks:")
+    print(extract.graphs(gnn.model))
+  }
 }
 
 summary.gnn.generative.model<-function(gnn.model){
-  print("Not Implemented")
+  import_builtins()$print(gnn.model$diagnostic.text)
 }
 
 summary.gnn.class.model<-function(gnn.model){
-  print("Not Implemented")
+  import_builtins()$print(gnn.model$diagnostic.text)
 }
 
 summary.gnn.regress.model<-function(gnn.model){
-  print("Not Implemented")
+  import_builtins()$print(gnn.model$diagnostic.text)
 }
 
 summary.gnn.link.model<-function(gnn.model){
-  print("Not Implemented")
+  import_builtins()$print(gnn.model$diagnostic.text)
 }
 
 extract.results<- function(gnn.model) {
   return(gnn.model$results)
+}
+
+extract.performance<- function(gnn.model) {
+  return(gnn.model$results$performance)
 }
 
 extract.clusters<- function(gnn.model) {
@@ -278,36 +303,40 @@ extract.graphs<-function(gnn.model,directed=T) {
 
 ####################### VISUALIZE RESULTS #######################
 
-plot.nets<-function(gnn.model,cl){
+plot.nets<-function(gnn.model,cl,plots=c(1,2)){
   graphs<-extract.graphs(gnn.model)
-  plot.net(graphs$A.pred,cl,title="Predicted Network")
-  plot.net(graphs$A.true,cl,title="Original Network")
+  if (1 %in% plots){
+    plot.net(graphs$A.pred,cl,title="Predicted Network")
+  }
+  if (2 %in% plots){
+    plot.net(graphs$A.true,cl,title="Original Network")
+  }
 }
 
 # maybe pca plot of embeddings
-plot.gnn.cluster.model <- function(gnn.model) {
+plot.gnn.cluster.model <- function(gnn.model,...) {
   cl<-extract.clusters(gnn.model)
-  plot.nets(gnn.model,cl)
+  plot.nets(gnn.model,cl,...)
 }
 
-plot.gnn.classify.model <- function(gnn.model) {
+plot.gnn.classify.model <- function(gnn.model,...) {
   cl<-gnn.model$results$y
-  plot.nets(gnn.model,cl)
+  plot.nets(gnn.model,cl,...)
 }
 
-plot.gnn.regress.model <- function(gnn.model) {
+plot.gnn.regress.model <- function(gnn.model,...) {
   cl<-gnn.model$results$y
-  plot.nets(gnn.model,cl)
+  plot.nets(gnn.model,cl,...)
 }
 
-plot.gnn.link.model <- function(gnn.model) {
+plot.gnn.link.model <- function(gnn.model,...) {
   cl<-NULL
-  plot.nets(gnn.model,cl)
+  plot.nets(gnn.model,cl,...)
 }
 
-plot.gnn.generative.model <- function(gnn.model) {
+plot.gnn.generative.model <- function(gnn.model,...) {
   cl<-NULL
-  plot.nets(gnn.model,cl)
+  plot.nets(gnn.model,cl,...)
 }
 
 plot.diagnostics <- function(gnn.model){
@@ -346,32 +375,79 @@ simulate.networks <- function(gnn.model,nsim=100) {
 
 ####################### INTERPRET RESULTS #######################
 
-vis.weighted.graph<-function(weight_matrix, cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL) {
-  set.seed(42)
-  c_scale <- colorRamp(cscale.colors)
+calc.centrality.measure<-function(net,measure="none",norm=T){
+  measures<-c("laplacian","clusterrank","e_cent","comm","strength")
+  norm.centrality.measure<-0
+  if (measure=="none"){
+    norm.centrality.measure<-0
+  } else if (measure%in%measures) {
+    if (measure=="laplacian"){
+      norm.centrality.measure<-laplacian(net)
+    } else if (measure=="clusterrank") {
+      norm.centrality.measure<-clusterrank(net)
+    } else if (measure=="e_cent") {
+      norm.centrality.measure<-eigen_centrality(net)
+    } else if (measure=='comm'){
+      norm.centrality.measure<-communitycent(net)
+    } else if (measure=="strength"){
+      norm.centrality.measure<-strength(net)
+    }
+    norm.centrality.measure[is.nan(norm.centrality.measure)]=0
+    if (norm){
+      norm.centrality.measure=abs(norm.centrality.measure)
+      norm.centrality.measure<-norm.centrality.measure/max(norm.centrality.measure)
+    }
+  }
+  return(norm.centrality.measure)
+}
+
+weight.matrix.to.net<-function(weight_matrix,threshold=NULL){
   weight_matrix<-(weight_matrix+t(weight_matrix))/2
   if (!is.null(threshold)){
     weight_matrix[(weight_matrix<threshold)]<-0.
   }
   net.true<-graph_from_adjacency_matrix(weight_matrix, mode="upper", weighted=TRUE)
+  return(net.true)
+}
+
+vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL) {
+  set.seed(42)
+  c_scale <- colorRamp(cscale.colors)
+  if (!is.null(net.input)) {
+    net.true<-net.input
+  } else {
+    net.true<-weight.matrix.to.net(weight_matrix,threshold)
+  }
+  E(net.true)$edge.curved=0.
+  V(net.true)$color <- cl
+  net.true<-simplify(net.true) %>%
+    set_vertex_attr("shape",value="circle")
+  if (!is.null(important.nodes)){
+    net.true<-net.true %>%
+      set_vertex_attr("shape",value="square", index=important.nodes)
+  }
   if (!is.null(threshold)){
     isolated.nodes = which(degree(net.true)==0)
     net.true = delete.vertices(net.true, isolated.nodes)
   }
-  E(net.true)$edge.curved=0.
-  V(net.true)$color <- cl
-  net.true<-simplify(net.true)
-  V(net.true)$size <- 5
-  weight<-E(net.true)$weight
-  E(net.true)$width<-weight/max(weight)*weight.scaling.factor
-  E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+  if (!is.null(node.weight)){
+    norm.centrality.measure<-node.weight/max(node.weight)
+  } else {
+    norm.centrality.measure<-calc.centrality.measure(net.true,centrality.measure)
+  }
+  V(net.true)$size <- floor.size+(ceil.size-floor.size)*norm.centrality.measure
+  if (!is.null(E(net.true)$weight)){
+    weight<-E(net.true)$weight
+    E(net.true)$width<-weight/max(weight)*weight.scaling.factor
+    E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+  }
   l <- layout_with_fr(net.true)
   l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
   plot(net.true, layout=l*1., rescale=F, edge.curved=0., vertex.label="", main="")
   return(weight_matrix)
 }
 
-visualize.attention<-function(gnn.model,weight.scaling.factor=20.){
+visualize.attention<-function(gnn.model,weight.scaling.factor=20.,...){
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"attention"
   attribution<-do.call(GCN4R$api$interpret_model, parameters)
@@ -389,15 +465,16 @@ visualize.attention<-function(gnn.model,weight.scaling.factor=20.){
 
   for (i in 1:length(weight_matrices)) {
     weight_matrix<-as.matrix(weight_matrices[[i]])
-    weight_matrices[[i]]<-vis.weighted.graph(weight_matrix,cl,weight.scaling.factor)
+    weight_matrices[[i]]<-vis.weighted.graph(weight_matrix,cl,weight.scaling.factor,...)
   }
+  class(weight_matrices)<-"attention"
   return(weight_matrices)
 }
 
 interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients"){
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"captum"
-  attributions<-do.call(GCN4R$api$interpret_model, parameters)
+  py_capture_output(attributions<-do.call(GCN4R$api$interpret_model, parameters))
   classes<-names(attributions)
   classes<-classes[classes!="cluster_assignments"]
   attr.list<-GCN4R$interpret$plot_attribution(attributions,F,T)
@@ -416,22 +493,35 @@ interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradien
 
     pheatmap(attribution,annotation_col=col_annot,annotation_row=row_annot)
   }
+  class(attr.list)<-"gradient"
   return(attr.list)
 }
 
-extract.motifs<-function(gnn.model){
+extract.motifs<-function(gnn.model,node_idx=NULL){
   nx<-import('networkx')
+  py <- import_builtins()
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"gnn_explainer"
-  attributions<-do.call(GCN4R$api$interpret_model, parameters)
-  for (i in 1:length(attributions)){
-    attributions[[i]]<-list(feature_scores=attributions[[i]]$node_feat,G=as.matrix(nx$convert_matrix$to_numpy_matrix(attributions[[i]]$explain_graph,weight='att')))
+  nodes<-lapply(as.integer(V(extract.graphs(gnn.model)$A.true)$name)-1,function(x){py$int(x)})
+  if (!is.null(node_idx)){
+    parameters$node_idx<-node_idx
   }
+  py_capture_output(attributions<-do.call(GCN4R$api$interpret_model, parameters))
+  node_idx<-names(attributions)
+  for (i in node_idx){
+    G.tmp<-attributions[[i]]$explain_graph
+    G<-nx$OrderedGraph()
+    G$add_nodes_from(nodes)
+    G$add_edges_from(G.tmp$edges(data=T))
+    G<-as.matrix(nx$convert_matrix$to_numpy_matrix(G,weight='att'))
+    attributions[[i]]<-list(feature_scores=attributions[[i]]$node_feat,G=G)
+  }
+  class(attributions)<-"motif"
   return(attributions)
 }
 
 get.motif<-function(attributions,i){
-  return(attributions[[i]]$G)
+  return(attributions[[as.character(i)]]$G)
 }
 
 get.feat.importance.scores<-function(attributions,i){
@@ -445,7 +535,7 @@ build.importance.matrix<-function(attributions,cl=NULL){
     feature.scores<-c(feature.scores,attribution$feature_scores)
   }
   attribution<-as.data.frame(matrix(feature.scores,nrow=N))
-  rownames(attribution)<-1:N
+  rownames(attribution)<-names(attributions)
   row_annot=NULL
   if (!is.null(cl) & length(cl)==N){
     row_annot<-data.frame(cluster=as.factor(cl))
@@ -461,9 +551,76 @@ build.importance.matrix<-function(attributions,cl=NULL){
   return(attribution)
 }
 
-vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL){
+vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, other.idx=NULL, ...){
   motif<-get.motif(attributions,i)
-  vis.weighted.graph(motif,cl, weight.scaling.factor, cscale.colors, threshold)
+  important.nodes<-c(i+1L)
+  if (!is.null(other.idx)) {
+    for (i in other.idx){
+      motif<-motif+get.motif(attributions,i)
+      important.nodes<-c(important.nodes,i+1L)
+    }
+    motif<-motif/(length(other.idx)+1)
+  }
+  vis.weighted.graph(motif, cl, weight.scaling.factor, cscale.colors, threshold, important.nodes = important.nodes,...)
+}
+
+cluster.performance.node.importance<-function(cluster.model){
+  sklearn_metrics<-import("sklearn.metrics")
+  cl<-extract.clusters(cluster.model)
+  scores<-c()
+  for (i in 1:nrow(cluster.model$parameters$sparse_matrix)){
+    parameters.nodes<-update.parameters(cluster.model$parameters,
+                                        list(sparse_matrix=cluster.model$parameters$sparse_matrix[-i,-i],
+                                             feature_matrix=cluster.model$parameters$feature_matrix[-i,]))
+
+    py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters.nodes))
+    scores<-c(scores,sklearn_metrics$v_measure_score(cl[-i],res$cl))
+  }
+  return(1-scores)
+}
+
+non.cluster.performance.node.importance<-function(gnn.model){
+  base.performance<-extract.performance(gnn.model)
+  scores<-c()
+  for (i in 1:nrow(gnn.model$parameters$sparse_matrix)){
+    parameters.nodes<-update.parameters(gnn.model$parameters,
+                                        list(sparse_matrix=gnn.model$parameters$sparse_matrix[-i,-i],
+                                             feature_matrix=gnn.model$parameters$feature_matrix[-i,]))
+
+    py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters.nodes))
+    scores<-c(scores,-(base.performance-res$performance)/base.performance)
+  }
+  return(scores)
+}
+
+performance.node.importance<-function(gnn.model){
+  if (gnn.model$parameters$task=="clustering"){
+    return(cluster.performance.node.importance(gnn.model))
+  } else {
+    return(non.cluster.performance.node.importance(gnn.model))
+  }
+}
+
+node.importance.attention<-function(attention.list, layers.idx=NULL){
+  if (is.null(layers.idx)){
+    layers.idx<-1:length(attention.list)
+  }
+  attention<-attention.list[[layers.idx[1]]]
+  if (length(layers.idx)>1){
+    for (i in layers.idx[2:length(layers.idx)]){
+      attention<-attention+attention.list[[layers.idx[i]]]
+    }
+  }
+  centrality.measure<-calc.centrality.measure(weight.matrix.to.net(attention),measure="strength",norm=F)
+  return(centrality.measure)
+}
+
+node.importance.gradient<-function(attributions){
+  return(apply(Reduce(function(x,y){abs(x)+abs(y)},attributions$attributions),1,mean)/length(attributions$attributions))
+}
+
+node.importance.motif<-function(motif.graphs,threshold=NULL){
+  return(unlist(lapply(1:length(motif.graphs),function(i){calc.centrality.measure(weight.matrix.to.net(get.motif(motif.graphs,i-1),threshold=threshold),measure="strength",norm=F)[i]})))
 }
 
 ####################### MISC #######################
@@ -492,6 +649,14 @@ animate.plot<-function(animate.model,gif_file="animate.gif", delay=0.2, res = 92
   utils::browseURL(gif_file)
 }
 
+relate.clustering.measures<-function(net,node.importance){
+  plot(betweenness(net),node.importance)
+  plot(eigen_centrality(net)$vector,node.importance)
+  plot(transitivity(net,"local"),node.importance)
+  print(summary(lm(betweenness(net)~node.importance)))
+  print(summary(lm(eigen_centrality(net)$vector~node.importance)))
+  print(summary(lm(transitivity(net,"local")~node.importance)))
+}
 
 ####################### OLD/DEPRECATED #######################
 

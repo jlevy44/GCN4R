@@ -399,11 +399,11 @@ def train_model_(#inputs_dir,
 
 		trainer.model.load_state_dict(torch.load(model_save_loc))
 
-		_,z,cl,c,A,threshold,s,y=trainer.predict(G)
+		_,z,cl,c,A,threshold,s,y,performance=trainer.predict(G)
 
 		G=Data(X,edge_index,edge_attr)
 
-		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold,s=s,y=y)
+		output=dict(G=G,z=z,cl=cl,c=c,A=A,X=X.detach().cpu().numpy(),threshold=threshold,s=s,y=y,performance=performance)
 
 		torch.save(output,predictions_save_path)
 

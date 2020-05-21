@@ -18,7 +18,6 @@ reticulate:::conda_list(conda = "auto")
 reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
-GCN4R$api
 ```
 
 
@@ -35,8 +34,7 @@ net.list
 # Visualize data
 
 ```{r}
-# Something is wrong with visualize net, needs debug, see below scripts for more info on plotting actual true graph
-visualize.net(net.list)
+visualize.net2(net.list,covar = "X2")
 ```
 
 # Load parameters
@@ -58,7 +56,8 @@ new.parameters<-list(encoder_base="GATConv",
                      learning_rate=1e-2,
                      lambda_kl=0.,
                      lambda_adv=0.001,
-                     lambda_cluster=0.5)
+                     lambda_cluster=0.5,
+                     model_save_loc="cluster.model.pkl")
 parameters<-update.parameters(parameters,new.parameters)
 ```
 
@@ -71,7 +70,7 @@ parameters<-update.parameters(parameters,new.parameters)
 
 # Fit cluster, embedding, classification, generation, or link prediction model
 ```{r}
-cluster.model<-cluster.model.fit(parameters, net.list)
+cluster.model<-cluster.model.fit(parameters, net.list,verbose=F)
 ```
 
 # Plot Objective Convergence
@@ -84,13 +83,17 @@ plot.diagnostics(cluster.model)
 results<-extract.results(cluster.model)
 graphs<-extract.graphs(cluster.model)
 cl<-extract.clusters(cluster.model)
-summary(cluster.model)
+summary(cluster.model,additional.info=F)
 ```
-
 
 # Visualize Results
 ```{r}
 plot(cluster.model)
+
+# Select predicted and save image
+tiff(file = "test.tiff", width = 2000, height = 2000, units = "px", res = 600)
+plot(cluster.model,plots=c(2))
+dev.off()
 ```
 
 
@@ -99,13 +102,15 @@ plot(cluster.model)
 ```{r}
 attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
 ```
+
 # Important Samples and Features per Cluster Assignment 
 ```{r}
 attributions<-interpret.predictors(cluster.model)
 ```
 
+# Extract Motifs in Data
 ```{r}
-parameters.2<-update.parameters(parameters,list(encoder_base="GCNConv"))
+parameters.2<-update.parameters(parameters,list(encoder_base="GCNConv",model_save_loc="cluster.model.2.pkl"))
 cluster.model.2<-cluster.model.fit(parameters.2, net.list)
 ```
 Please run: pip install git+https://github.com/rusty1s/pytorch_geometric.git for motif visualization:
@@ -113,15 +118,23 @@ Please run: pip install git+https://github.com/rusty1s/pytorch_geometric.git for
 motif.graphs<-extract.motifs(cluster.model.2)
 cl<-extract.clusters(cluster.model.2)
 predictor.importance<-build.importance.matrix(motif.graphs,cl)
-vis.motif(motif.graphs,61L,cl,threshold=0.4)
-vis.motif(motif.graphs,8L,cl,threshold=0.4)
-vis.motif(motif.graphs,5L,cl,threshold=0.5, weight.scaling.factor=1.5)
-vis.motif(motif.graphs,71L,cl,threshold=0.2)
+vis.motif(motif.graphs,60L,cl,threshold=0.3)
+vis.motif(motif.graphs,7L,cl,threshold=0.3)
+vis.motif(motif.graphs,70L,cl,threshold=0.3)
+
+# More advanced examples
+vis.motif(motif.graphs,4L,cl,threshold=0.3, weight.scaling.factor=1.5)
+vis.motif(motif.graphs,70L,cl,threshold=0.2, other.idx=c(60L, 7L, 4L))
+vis.motif(motif.graphs,70L,cl,threshold=0.25, weight.scaling.factor=1.5, other.idx=c(60L, 7L, 4L), centrality.measure="none")
+vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
+
 ```
+
 # Matching graph embeddings to multivariate normal distribution
 ```{r}
 parameters.3<-update.parameters(parameters,list(ae_type="ARGVA",
-                                                lambda_kl=1e-2))
+                                                lambda_kl=1e-2,
+                                                model_save_loc="generative.model.pkl"))
 embedding.model<-cluster.model.fit(parameters.3, net.list)
 z<-extract.embeddings(embedding.model)
 cl<-extract.clusters(embedding.model)
@@ -129,11 +142,11 @@ lo<-make.layout(z)
 G.true<-extract.graphs(embedding.model)$A.true
 plot.net(G.true,cl,layout=lo)
 ```
+
 # Plot diagnostics with added variational KL divergence loss
 ```{r}
 plot.diagnostics(embedding.model)
 ```
-
 
 # Simulate Networks from Variational Graph Auto-Encoder model
 ```{r}
@@ -147,6 +160,40 @@ for (i in c(1,2,29,30)){
 }
 ```
 
+# Node importance measurements
+```{r}
+# performance-based
+# change in cluster membership or decrease performance model
+net<-extract.graphs(cluster.model)$A.true
+cl<-extract.clusters(cluster.model)
+node.importance<-performance.node.importance(cluster.model)
+vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, floor.size = 2., ceil.size=10, node.weight=node.importance)
+relate.clustering.measures(net,node.importance)
+
+# gradient-based
+# sum abs value node features
+node.importance<-node.importance.gradient(attributions)
+vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
+relate.clustering.measures(net,node.importance)
+
+# attention-based
+# strength of layer or aggregated across layers
+node.importance<-node.importance.attention(attention.matrices,layers.idx = c(1))
+vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
+relate.clustering.measures(net,node.importance)
+
+# motif-based, for now jus centrality, measure
+# what part of total graph does motif occupy * betweeness centrality or average path length
+# or how much does removal of  motif effectt accuracy
+net<-extract.graphs(cluster.model.2)$A.true
+cl<-extract.clusters(cluster.model.2)
+node.importance<-node.importance.motif(motif.graphs,0.3)
+vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
+relate.clustering.measures(net,node.importance)
+
+```
+
+# Animate the fitting procedures for the network
 ```{r}
 parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
 animate.model<-cluster.model.fit(parameters.4, net.list)
