@@ -199,3 +199,17 @@ parameters.4<-update.parameters(parameters,list(animation_save_file="animation.p
 animate.model<-cluster.model.fit(parameters.4, net.list)
 animate.plot(animate.model,res=200)
 ```
+
+# Add GNN terms to ERGM model
+```{r}
+cl<-extract.clusters(cluster.model)
+summary(net.mod0<-ergm.network(net~edges,cluster.model, add.dist = F,simulate=F,pseudo=T))
+summary(net.mod1<-ergm.network(net~edges+nodematch("cl",diff=T),cluster.model, add.dist = F,simulate=F,pseudo=T))
+summary(net.mod2<-ergm.network(net~edges,cluster.model, distance.metric = "correlation",add.dist = T,simulate=F,pseudo=T))
+summary(net.mod3<-ergm.network(net~edges+nodematch("cl",diff=T)+triangle,cluster.model, distance.metric = "euclidean",add.dist = T,simulate=F,pseudo=T))
+plot.net(extract.graphs(cluster.model)$A.true,cl)
+for(net.mod in list(net.mod0,net.mod1,net.mod2,net.mod3)){
+  plot.net(asIgraph(simulate(net.mod)),cl)
+}
+```
+

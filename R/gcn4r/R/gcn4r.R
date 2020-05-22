@@ -18,6 +18,8 @@
   library(png)
   library(gifski)
   library(centiserve)
+  library(intergraph)
+  library(rdist)
 }
 
 ####################### IMPORT #######################
@@ -74,6 +76,10 @@ generate.net.list <- function (adj.csv,cov.csv) {
 }
 
 ####################### VISUALIZE DATA #######################
+
+net.list.to.igraph<-function(net.list){
+  return(graph_from_data_frame(net.list$A, directed = T, vertices = net.list$X))
+}
 
 to.igraph <- function(A,X,directed=T){
   return(graph_from_data_frame(A, directed = directed, vertices = X))
@@ -359,6 +365,7 @@ simulate.networks <- function(gnn.model,nsim=100) {
   parameters$task<-"generation"
   sim.graphs<-list()
   embeddings<-list()
+  cl<-list()
   for (i in 1:nsim) {
     parameters$random_seed<-i
     invisible(py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters)))
@@ -367,9 +374,11 @@ simulate.networks <- function(gnn.model,nsim=100) {
     A.adj<-matrix(as.integer(A>threshold),nrow=nrow(A))
     A<-get.edgelist(graph.adjacency(A.adj))
     sim.graphs[[i]]<-to.igraph(A,X)
+    cl[[i]]<-res$cl
   }
   sim.graphs<-list(networks=sim.graphs,
-                   embeddings=embeddings)
+                   embeddings=embeddings,
+                   cl=cl)
   return(sim.graphs)
 }
 
@@ -656,6 +665,37 @@ relate.clustering.measures<-function(net,node.importance){
   print(summary(lm(betweenness(net)~node.importance)))
   print(summary(lm(eigen_centrality(net)$vector~node.importance)))
   print(summary(lm(transitivity(net,"local")~node.importance)))
+}
+
+ergm.network<-function(formula,gnn.model,add.dist=T,distance.metric="euclidean", simulate=F, pseudo=F, ...){
+  net.list<-list(A=as.data.frame(gnn.model$parameters$sparse_matrix),
+                 X=as.data.frame(gnn.model$parameters$feature_matrix))
+  net.list$X$cl<-as.factor(extract.clusters(gnn.model))
+  net<-graph_from_adjacency_matrix(as.matrix(net.list$A))
+  dist<-pdist(extract.embeddings(gnn.model), metric = distance.metric, p = 2)
+  if (simulate){
+    sim<-simulate.networks(gnn.model,nsim=1)
+    net<-sim$networks[[1]]
+    dist<-pdist(sim$embeddings[[1]], metric = distance.metric, p = 2)
+    net.list$X$cl<-sim$cl[[1]]
+  }
+  for (nm in colnames(net.list$X)){
+    col<-net.list$X[,nm]
+    net<-net %>% set_vertex_attr(name=nm, index = V(net), value=col)
+  }
+  net<-asNetwork(net)
+
+  if (add.dist){
+    formula<-as.formula(paste(deparse(formula),"edgecov(dist)",sep="+"))
+  } else {
+    formula<-as.formula(deparse(formula))
+  }
+  if (pseudo){
+    return(ergmMPLE(formula,output="fit",...))
+  }
+  else {
+    return(ergm(formula,...))
+  }
 }
 
 ####################### OLD/DEPRECATED #######################
