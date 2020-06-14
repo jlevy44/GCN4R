@@ -20,6 +20,7 @@
   library(centiserve)
   library(intergraph)
   library(rdist)
+  library(stats)
 }
 
 ####################### IMPORT #######################
@@ -69,9 +70,15 @@ import_gcn4r <- function() {
 
 ####################### LOAD DATA #######################
 
-generate.net.list <- function (adj.csv,cov.csv) {
+generate.net.list <- function(adj.csv,cov.csv) {
   A<-read.csv(adj.csv)#[,-1]
   X<-read.csv(cov.csv)#[,-1]
+  return(list(A=A,X=X))
+}
+
+igraph2net.list <- function(net) {
+  A<-as.matrix(as_adjacency_matrix(net))
+  X<-as.data.frame(vertex_attr(net))
   return(list(A=A,X=X))
 }
 
@@ -102,7 +109,7 @@ visualize.net<- function(net.list, covar=NULL, layout=NULL) {
 }
 
 visualize.net2<- function(net.list, covar=NULL, layout=NULL) {
-  vis.weighted.graph(as.matrix(net.list$A[,-1]),cl=net.list$X[,covar], cscale.colors=c("black","grey"))
+  vis.weighted.graph(as.matrix(net.list$A),cl=net.list$X[,covar], cscale.colors=c("black","grey"))
 }
 
 ####################### SET PARAMETERS #######################
@@ -163,8 +170,8 @@ return.results<- function(parameters, net.list, prediction_column=-1L, task="clu
 }
 
 add.graph.info <- function(parameters,net.list,prediction_column=-1L){
-  parameters$sparse_matrix<-as.matrix(net.list$A[,-1])
-  parameters$feature_matrix<-as.matrix(net.list$X[,-1])
+  parameters$sparse_matrix<-as.matrix(net.list$A)#[,-1]
+  parameters$feature_matrix<-as.matrix(net.list$X)#[,-1]
   return(parameters)
 }
 

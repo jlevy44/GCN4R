@@ -43,7 +43,6 @@ def return_attention_scores(G, model):
 	outputs=model.encoder(x,edge_index)
 	attention_scores=[]
 	for conv in model.encoder.convs:
-		conv.attention_coefs['edge_index']=edge_index
 		attention_scores.append(conv.attention_coefs)
 	return attention_scores
 
@@ -109,9 +108,8 @@ def create_explainer(model=None, epochs=100, lr=0.01):
 
 def explainer2graph(i,explainer,edge_mask,edge_index,threshold,y):
 	assert edge_mask.size(0) == edge_index.size(1)
-	# Only operate on a k-hop subgraph around `node_idx`.
-	subset, edge_index, hard_edge_mask = k_hop_subgraph(
-		i, explainer.__num_hops__(), edge_index, relabel_nodes=True,
+	subset, edge_index, _, hard_edge_mask = k_hop_subgraph(
+		int(i), explainer.__num_hops__(), edge_index, relabel_nodes=True,
 		num_nodes=None, flow=explainer.__flow__())
 
 	edge_mask = edge_mask[hard_edge_mask]

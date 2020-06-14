@@ -12,8 +12,19 @@ knitr::opts_chunk$set(echo = TRUE)
 library(gcn4r)
 ```
 
+# Install package
+```{r}
+# install.packages("reticulate")
+# devtools::install_github("jlevy44/gcn4r")
+# conda_create("gcn4r")
+# conda_install("gcn4r", "gcn4r",pip=T)
+# use_condaenv("gcn4r")
+```
+
+
 # Import Library, link anaconda to R studio
 ```{r}
+# http://moreno.ss.uci.edu/data.html
 reticulate:::conda_list(conda = "auto")
 reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
@@ -22,19 +33,39 @@ GCN4R<-import_gcn4r()
 
 
 # Load data
-# fix convergence or load new data
+Comment out below to download and save Lazega Network.
+```{r}
+# devtools::install_github("zalmquist/networkdata")
+# library(networkdata)
+# data("lazega")
+# saveRDS(asIgraph(lazega$FRIENDSHIP),"netdata.rds")
+net<-readRDS("netdata.rds")
+```
+
 ```{r}
 # alternative data
 physician.files<-c("../gcn4r/data/A_physician.csv","../gcn4r/data/X_physician.csv")
-# load lawyer data
-net.list<-generate.net.list("A_lawyer.csv","X_lawyer.csv") 
-net.list
+lawyer.files<-c("A_lawyer.csv","X_lawyer.csv")
+# load lawyer data from csv
+# net.list<-generate.net.list(lawyer.files[1],lawyer.files[2]) 
+# load lawyer data from igraph
+net.list<-igraph2net.list(net)
+# create factor variables
+net.list$X[,c("na","vertex.names")]<-NULL
+for (cat.var in c("gender","law_school","office","practice","status")){
+  net.list$X[,cat.var]<-as.factor(net.list$X[,cat.var])
+}
+```
+
+# Create design matrix to expand factors, update net.list
+```{r}
+net.list$X<-model.matrix(~.,data=net.list$X)[,-1]
 ```
 
 # Visualize data
 
 ```{r}
-visualize.net2(net.list,covar = "X2")
+visualize.net2(net.list,covar = "office2")
 ```
 
 # Load parameters
@@ -48,23 +79,18 @@ parameters<-generate_default_parameters()
 ```{r}
 new.parameters<-list(encoder_base="GATConv",
                      K=3L,
-                     epoch_cluster=100L,
+                     epoch_cluster=150L,
                      n_layers=1L,
                      use_mincut=T,
                      ae_type="ARGA",
                      custom_dataset="none",
                      learning_rate=1e-2,
                      lambda_kl=0.,
-                     lambda_adv=0.001,
-                     lambda_cluster=0.5,
+                     lambda_adv=1e-3,
+                     lambda_cluster=12.,
+                     lambda_recon=3.,
                      model_save_loc="cluster.model.pkl")
 parameters<-update.parameters(parameters,new.parameters)
-```
-
-
-# Create design matrix to expand factors, update net.list
-```{r}
-# WILL DO, WIP!
 ```
 
 
@@ -100,7 +126,11 @@ dev.off()
 # Interpret
 # Attention between Two Individuals 
 ```{r}
+parameters2<-extract.parameters(cluster.model)
+  parameters2$mode<-"attention"
+  attribution<-do.call(GCN4R$api$interpret_model, parameters2)
 attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
+weight_matrices<-GCN4R$interpret$return_attention_weights(attribution,T)
 ```
 
 # Important Samples and Features per Cluster Assignment 
@@ -112,8 +142,9 @@ attributions<-interpret.predictors(cluster.model)
 ```{r}
 parameters.2<-update.parameters(parameters,list(encoder_base="GCNConv",model_save_loc="cluster.model.2.pkl"))
 cluster.model.2<-cluster.model.fit(parameters.2, net.list)
+plot.diagnostics(cluster.model.2)
 ```
-Please run: pip install git+https://github.com/rusty1s/pytorch_geometric.git for motif visualization:
+Motif Visualization:
 ```{r}
 motif.graphs<-extract.motifs(cluster.model.2)
 cl<-extract.clusters(cluster.model.2)
@@ -197,10 +228,10 @@ relate.clustering.measures(net,node.importance)
 ```{r}
 parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
 animate.model<-cluster.model.fit(parameters.4, net.list)
-animate.plot(animate.model,res=200)
+animate.plot(animate.model,res=200, delay = 0.04)
 ```
 
-# Add GNN terms to ERGM model
+# Add GNN terms to ERGM model (could attention matrix be used for peer effects?)
 ```{r}
 cl<-extract.clusters(cluster.model)
 summary(net.mod0<-ergm.network(net~edges,cluster.model, add.dist = F,simulate=F,pseudo=T))

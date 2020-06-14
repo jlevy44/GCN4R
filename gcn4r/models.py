@@ -28,36 +28,35 @@ class GATConvInterpret(GATConv):
 				 negative_slope, dropout, bias, **kwarg)
 		self.attention_coefs=dict()#defaultdict(list)
 
-	def message(self, edge_index_i, x_i, x_j, size_i):
-		# Compute attention coefficients.
-		x_j = x_j.view(-1, self.heads, self.out_channels)
-		if x_i is None:
-			alpha = (x_j * self.att[:, :, self.out_channels:]).sum(dim=-1)
-		else:
-			x_i = x_i.view(-1, self.heads, self.out_channels)
-			alpha = (torch.cat([x_i, x_j], dim=-1) * self.att).sum(dim=-1)
-
-		alpha = F.leaky_relu(alpha, self.negative_slope)
-		alpha = softmax(alpha, edge_index_i, size_i)
-		# print(alpha.shape)
-		# self.attention_coefs['edge_index_i']=edge_index_i
+	def forward(self,x,edge_index,**kwarg):
+		x,(edge_index, alpha)=super().forward(x,edge_index,return_attention_weights=True)
 		self.attention_coefs['coef']=alpha
-
-		# Sample attention coefficients stochastically.
-		alpha = F.dropout(alpha, p=self.dropout, training=self.training)
-
-		return x_j * alpha.view(-1, self.heads, 1)
+		self.attention_coefs['edge_index']=edge_index
+		return x
+	# super(GATConvInterpret,self).__init__()
+	# 	self.model=GATConv(in_channels, out_channels, heads, concat,
+	# 			 negative_slope, dropout, bias, **kwarg)
+	# 	self.attention_coefs=dict()#defaultdict(list)
+	#
+	# def reset_parameters(self):
+	# 	self.model.reset_parameters()
+	#
+	# def forward(self,x,edge_index):
+	# 	x,(edge_index, alpha)=self.model(x,edge_index,return_attention_weights=True)
+	# 	self.attention_coefs['coef']=alpha
+	# 	self.attention_coefs['edge_index']=edge_index
+	# 	return x
 
 class Encoder(nn.Module):
 	def __init__(self, n_input, n_hidden, n_layers, conv_operator, variational=False, adversarial=False, bias=True, use_mincut=False, K=10, Niter=10, n_classes=-1):
 		super(Encoder, self).__init__()
 		self.convs=nn.ModuleList()
 		conv_layer=conv_operator(n_input,n_hidden,bias=bias)
-		glorot(conv_layer.weight)
+		conv_layer.reset_parameters()#glorot(conv_layer.weight)
 		self.convs.append(conv_layer)
 		for i in range(n_layers):
 			conv_layer=conv_operator(n_hidden,n_hidden,bias=bias)
-			glorot(conv_layer.weight)
+			conv_layer.reset_parameters()#glorot(conv_layer.weight)
 			self.convs.append(conv_layer)
 		self.adversarial=adversarial
 		self.variational=variational
@@ -74,8 +73,8 @@ class Encoder(nn.Module):
 			# self.convs=self.convs[:-1]
 			conv_mu=conv_operator(n_hidden,n_hidden,bias=bias)
 			conv_logvar=conv_operator(n_hidden,n_hidden,bias=bias)
-			glorot(conv_mu.weight)
-			glorot(conv_logvar.weight)
+			conv_mu.reset_parameters()#glorot(conv_mu.weight)
+			conv_logvar.reset_parameters()#glorot(conv_logvar.weight)
 			self.conv_mu=conv_mu
 			self.conv_logvar=conv_logvar
 		self.n_hidden=n_hidden
