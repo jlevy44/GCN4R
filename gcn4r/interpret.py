@@ -139,7 +139,7 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold
 	x=G.x
 	edge_index=G.edge_index
 	if node_idx == None:
-		node_idx = np.arange(x.shape[0])
+		node_idx = np.arange(x.shape[0]).tolist()
 	elif isinstance(node_idx,int):
 		node_idx = [node_idx]
 	model=ExplainerModel(model,key)
@@ -147,7 +147,11 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold
 	subgraphs={}
 	for i in node_idx:
 		i=int(i)
-		node_feat_mask, edge_mask = explainer.explain_node(i, x, edge_index)
+		print(i)
+		try:
+			node_feat_mask, edge_mask = explainer.explain_node(i, x, edge_index)
+		except:
+			node_feat_mask, edge_mask = torch.zeros(x.shape[1]).float(), torch.zeros(edge_index.shape[1]).float()
 		subgraphs[i]=dict(node_feat=node_feat_mask.numpy(),explain_graph=explainer2graph(i,explainer,edge_mask,edge_index,threshold,y))
 		# explainer.visualize_subgraph(i, edge_index, edge_mask, y=torch.tensor(y.flatten()).long(),threshold=threshold)
 		# plts[i]=fig

@@ -126,11 +126,7 @@ dev.off()
 # Interpret
 # Attention between Two Individuals 
 ```{r}
-parameters2<-extract.parameters(cluster.model)
-  parameters2$mode<-"attention"
-  attribution<-do.call(GCN4R$api$interpret_model, parameters2)
 attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
-weight_matrices<-GCN4R$interpret$return_attention_weights(attribution,T)
 ```
 
 # Important Samples and Features per Cluster Assignment 
@@ -143,28 +139,35 @@ attributions<-interpret.predictors(cluster.model)
 parameters.2<-update.parameters(parameters,list(encoder_base="GCNConv",model_save_loc="cluster.model.2.pkl"))
 cluster.model.2<-cluster.model.fit(parameters.2, net.list)
 plot.diagnostics(cluster.model.2)
+summary(cluster.model.2)
 ```
 Motif Visualization:
 ```{r}
 motif.graphs<-extract.motifs(cluster.model.2)
+# extract specific motifs
+# motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L))
 cl<-extract.clusters(cluster.model.2)
 predictor.importance<-build.importance.matrix(motif.graphs,cl)
 vis.motif(motif.graphs,60L,cl,threshold=0.3)
 vis.motif(motif.graphs,7L,cl,threshold=0.3)
 vis.motif(motif.graphs,70L,cl,threshold=0.3)
-
 # More advanced examples
 vis.motif(motif.graphs,4L,cl,threshold=0.3, weight.scaling.factor=1.5)
 vis.motif(motif.graphs,70L,cl,threshold=0.2, other.idx=c(60L, 7L, 4L))
 vis.motif(motif.graphs,70L,cl,threshold=0.25, weight.scaling.factor=1.5, other.idx=c(60L, 7L, 4L), centrality.measure="none")
 vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
-
 ```
-
 # Matching graph embeddings to multivariate normal distribution
 ```{r}
 parameters.3<-update.parameters(parameters,list(ae_type="ARGVA",
+                                                K=2L,
                                                 lambda_kl=1e-2,
+                                                kl_warmup=10L,
+                                                lambda_adv=1e-4,
+                                                lambda_recon=1.,
+                                                lambda_cluster=3.,
+                                                epoch_cluster=120L,
+                                                n_layers=2L,
                                                 model_save_loc="generative.model.pkl"))
 embedding.model<-cluster.model.fit(parameters.3, net.list)
 z<-extract.embeddings(embedding.model)
@@ -176,6 +179,7 @@ plot.net(G.true,cl,layout=lo)
 
 # Plot diagnostics with added variational KL divergence loss
 ```{r}
+summary(embedding.model)
 plot.diagnostics(embedding.model)
 ```
 
@@ -183,7 +187,7 @@ plot.diagnostics(embedding.model)
 ```{r}
 sim.graphs<-simulate.networks(embedding.model,nsim=30)
 cl<-extract.clusters(embedding.model)
-for (i in c(1,2,29,30)){
+for (i in c(1,2,20,30)){
   net<-sim.graphs$networks[[i]]
   embedding<-sim.graphs$embeddings[[i]]
   lo<-make.layout(embedding)
