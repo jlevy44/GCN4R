@@ -49,9 +49,12 @@ def return_attention_scores(G, model):
 def attn2graph(attribute,i, symmetrize=False):
     # print(attribute)
     edge=attribute[i]['edge_index'].T
+    # if edge.shape[1]!=2:
+    #     edge=edge.T
     N=edge.max()+1
     attn_scores=attribute[i]['coef'].detach().numpy()
     weights=attn_scores.flatten()
+    
     edge_list=(edge[:,0].flatten(), edge[:,1].flatten())
     G=csr_matrix((weights, edge_list), shape=(N, N))
     if symmetrize:
