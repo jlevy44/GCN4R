@@ -577,7 +577,7 @@ vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c(
     }
     motif<-motif/(length(other.idx)+1)
   }
-  vis.weighted.graph(motif, cl, weight.scaling.factor, cscale.colors, threshold, important.nodes = important.nodes,...)
+  weight.matrix<-vis.weighted.graph(motif, cl, weight.scaling.factor, cscale.colors, threshold, important.nodes = important.nodes,...)
 }
 
 cluster.performance.node.importance<-function(cluster.model){
