@@ -281,6 +281,10 @@ extract.results<- function(gnn.model) {
   return(gnn.model$results)
 }
 
+extract.features<-function(gnn.model) {
+  return(colnames(gnn.model$parameters$feature_matrix))
+}
+
 extract.performance<- function(gnn.model) {
   return(gnn.model$results$performance)
 }
@@ -583,7 +587,7 @@ get.feat.importance.scores<-function(attributions,i){
   return(attributions[[i]]$feature_scores)
 }
 
-build.importance.matrix<-function(attributions,cl=NULL){
+build.importance.matrix<-function(attributions,cl=NULL,attr.col.names=NULL){
   N<-length(attributions)
   feature.scores<-c()
   for (attribution in attributions){
@@ -591,11 +595,15 @@ build.importance.matrix<-function(attributions,cl=NULL){
   }
   attribution<-as.data.frame(matrix(feature.scores,nrow=N))
   rownames(attribution)<-names(attributions)
+  colnames(attribution)<-1:ncol(attribution)
+  if (!is.null(attr.col.names)){
+    colnames(attribution)<-attr.col.names
+  }
   row_annot=NULL
   if (!is.null(cl) & length(cl)==N){
     row_annot<-data.frame(cluster=as.factor(cl))
 
-    colnames(attribution)<-1:ncol(attribution)
+
 
     rownames(row_annot) <- rownames(attribution)
     colnames(row_annot) <- c("cluster")

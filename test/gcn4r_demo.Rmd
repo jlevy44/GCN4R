@@ -153,7 +153,7 @@ motif.graphs<-extract.motifs(cluster.model.2)
 # extract specific motifs
 # motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L))
 cl<-extract.clusters(cluster.model.2)
-predictor.importance<-build.importance.matrix(motif.graphs,cl)
+predictor.importance<-build.importance.matrix(motif.graphs,cl,extract.features(cluster.model.2))
 vis.motif(motif.graphs,60L,cl,threshold=0.3)
 vis.motif(motif.graphs,7L,cl,threshold=0.3)
 vis.motif(motif.graphs,70L,cl,threshold=0.3)
