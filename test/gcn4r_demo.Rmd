@@ -120,6 +120,9 @@ plot(cluster.model)
 tiff(file = "test.tiff", width = 2000, height = 2000, units = "px", res = 600)
 plot(cluster.model,plots=c(2))
 dev.off()
+
+# plot latent positions
+plot(cluster.model,latent=T,plots=c(2))
 ```
 
 
@@ -127,6 +130,9 @@ dev.off()
 # Attention between Two Individuals 
 ```{r}
 attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4)
+
+# With latent embeddings
+attention.matrices<-visualize.attention(cluster.model,weight.scaling.factor = 4, latent=T)
 ```
 
 # Important Samples and Features per Cluster Assignment 
