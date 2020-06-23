@@ -21,6 +21,7 @@
   library(intergraph)
   library(rdist)
   library(stats)
+  library(linkcomm)
 }
 
 ####################### IMPORT #######################
@@ -431,12 +432,13 @@ calc.centrality.measure<-function(net,measure="none",norm=T){
     } else if (measure=="clusterrank") {
       norm.centrality.measure<-clusterrank(net)
     } else if (measure=="e_cent") {
-      norm.centrality.measure<-eigen_centrality(net)
+      norm.centrality.measure<-eigen_centrality(net)$vector
     } else if (measure=='comm'){
       norm.centrality.measure<-communitycent(net)
     } else if (measure=="strength"){
       norm.centrality.measure<-strength(net)
     }
+    print(norm.centrality.measure)
     norm.centrality.measure[is.nan(norm.centrality.measure)]=0
     if (norm){
       norm.centrality.measure=abs(norm.centrality.measure)
@@ -501,7 +503,7 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
   return(weight_matrix)
 }
 
-visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,...){
+visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,...){
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"attention"
   attribution<-do.call(GCN4R$api$interpret_model, parameters)
@@ -524,13 +526,17 @@ visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,...){
 
   for (i in 1:length(weight_matrices)) {
     weight_matrix<-as.matrix(weight_matrices[[i]])
-    weight_matrices[[i]]<-vis.weighted.graph(weight_matrix,cl,weight.scaling.factor,layout=layout,...)
+    if (plot){
+      weight_matrices[[i]]<-vis.weighted.graph(weight_matrix,cl,weight.scaling.factor,layout=layout,...)
+    } else {
+      weight_matrices[[i]]<-weight_matrix
+    }
   }
   class(weight_matrices)<-"attention"
   return(weight_matrices)
 }
 
-interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients"){
+interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients",plot=T){
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"captum"
   py_capture_output(attributions<-do.call(GCN4R$api$interpret_model, parameters))
@@ -538,20 +544,23 @@ interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradien
   classes<-classes[classes!="cluster_assignments"]
   attr.list<-GCN4R$interpret$plot_attribution(attributions,F,T)
 
-  for (i in 1:length(classes)){
-    attribution<-as.data.frame(attr.list$attributions[i])
-    row_annot<-data.frame(cluster=as.factor(attr.list$cl))
-    col_annot<-data.frame(importance=attr.list$feature_importances)
-    rownames(attribution)<-1:nrow(attribution)
-    colnames(attribution)<-colnames(gnn.model$parameters$feature_matrix)#1:ncol(attribution)
+  if (plot){
+    for (i in 1:length(classes)){
+      attribution<-as.data.frame(attr.list$attributions[i])
+      row_annot<-data.frame(cluster=as.factor(attr.list$cl))
+      col_annot<-data.frame(importance=attr.list$feature_importances)
+      rownames(attribution)<-1:nrow(attribution)
+      colnames(attribution)<-colnames(gnn.model$parameters$feature_matrix)#1:ncol(attribution)
 
-    rownames(col_annot) <- colnames(attribution)
-    colnames(col_annot) <- c("feature")#colnames(attribution)
-    rownames(row_annot) <- rownames(attribution)
-    colnames(row_annot) <- c("cluster")
+      rownames(col_annot) <- colnames(attribution)
+      colnames(col_annot) <- c("feature")#colnames(attribution)
+      rownames(row_annot) <- rownames(attribution)
+      colnames(row_annot) <- c("cluster")
 
-    pheatmap(attribution,annotation_col=col_annot,annotation_row=row_annot)
+      pheatmap(attribution,annotation_col=col_annot,annotation_row=row_annot)
+    }
   }
+
   class(attr.list)<-"gradient"
   return(attr.list)
 }
@@ -684,6 +693,30 @@ node.importance.gradient<-function(attributions){
 
 node.importance.motif<-function(motif.graphs,threshold=NULL){
   return(unlist(lapply(1:length(motif.graphs),function(i){calc.centrality.measure(weight.matrix.to.net(get.motif(motif.graphs,i-1),threshold=threshold),measure="strength",norm=F)[i]})))
+}
+
+plot.node.importance<-function(gnn.model,importance.type="performance",layers.idx=c(1),motif.threshold=NULL,relate.cluster.meas=F,...){
+  if (importance.type=="attention"){
+    attention.matrices<-visualize.attention(gnn.model, plot=F)
+    node.importance<-node.importance.attention(attention.matrices,layers.idx = layers.idx)
+  } else if (importance.type=="performance"){
+    node.importance<-performance.node.importance(gnn.model)
+  } else if (importance.type=="gradient"){
+    attribution<-interpret.predictors(gnn.model,plot=F)
+    node.importance<-node.importance.gradient(attribution)
+  } else if (importance.type=="motif") {
+    motif.graphs<-extract.motifs(gnn.model)
+    node.importance<-node.importance.motif(motif.graphs,threshold=motif.threshold)
+  } else {
+    print("Please specify importance.type attention|performance|gradient|motif")
+    node.importance<-0.
+  }
+  net<-extract.graphs(cluster.model)$A.true
+  vis.weighted.graph(net.input=net, node.weight=node.importance, ...)
+  if (relate.cluster.meas){
+    relate.clustering.measures(net,node.importance)
+  }
+  return(node.importance)
 }
 
 ####################### MISC #######################

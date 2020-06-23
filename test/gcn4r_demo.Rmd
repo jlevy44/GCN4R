@@ -154,7 +154,13 @@ motif.graphs<-extract.motifs(cluster.model.2)
 # motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L))
 cl<-extract.clusters(cluster.model.2)
 predictor.importance<-build.importance.matrix(motif.graphs,cl,extract.features(cluster.model.2))
+
+vis.motif(motif.graphs,60L,cl,threshold=0.1)
+vis.motif(motif.graphs,60L,cl,threshold=0.2)
 vis.motif(motif.graphs,60L,cl,threshold=0.3)
+vis.motif(motif.graphs,60L,cl,threshold=0.4)
+vis.motif(motif.graphs,60L,cl,threshold=0.5)
+
 vis.motif(motif.graphs,7L,cl,threshold=0.3)
 vis.motif(motif.graphs,70L,cl,threshold=0.3)
 # More advanced examples
@@ -162,7 +168,32 @@ vis.motif(motif.graphs,4L,cl,threshold=0.3, weight.scaling.factor=1.5)
 vis.motif(motif.graphs,70L,cl,threshold=0.2, other.idx=c(60L, 7L, 4L))
 vis.motif(motif.graphs,70L,cl,threshold=0.25, weight.scaling.factor=1.5, other.idx=c(60L, 7L, 4L), centrality.measure="none")
 vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
+vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="clusterrank", floor.size=3, ceil.size=15)
+
 ```
+
+# Node importance measurements
+```{r}
+# performance-based
+# change in cluster membership or decrease performance model
+cl<-extract.clusters(cluster.model)
+plot.node.importance(cluster.model,importance.type = "performance", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, floor.size = 2., ceil.size=10)
+
+# gradient-based
+# sum abs value node features
+plot.node.importance(cluster.model,importance.type = "gradient", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl)
+
+# attention-based
+# strength of layer or aggregated across layers
+plot.node.importance(cluster.model,importance.type = "attention", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, layers.idx = c(1))
+
+# motif-based, for now just centrality, measure
+# what part of total graph does motif occupy * betweeness centrality or average path length
+# or how much does removal of  motif effect accuracy
+cl<-extract.clusters(cluster.model.2)
+plot.node.importance(cluster.model.2,importance.type = "motif", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, motif.threshold = 0.3)
+```
+
 # Matching graph embeddings to multivariate normal distribution
 ```{r}
 parameters.3<-update.parameters(parameters,list(ae_type="ARGVA",
@@ -199,39 +230,6 @@ for (i in c(1,2,20,30)){
   lo<-make.layout(embedding)
   plot.net(net,cl,layout = lo)
 }
-```
-
-# Node importance measurements
-```{r}
-# performance-based
-# change in cluster membership or decrease performance model
-net<-extract.graphs(cluster.model)$A.true
-cl<-extract.clusters(cluster.model)
-node.importance<-performance.node.importance(cluster.model)
-vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, floor.size = 2., ceil.size=10, node.weight=node.importance)
-relate.clustering.measures(net,node.importance)
-
-# gradient-based
-# sum abs value node features
-node.importance<-node.importance.gradient(attributions)
-vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
-relate.clustering.measures(net,node.importance)
-
-# attention-based
-# strength of layer or aggregated across layers
-node.importance<-node.importance.attention(attention.matrices,layers.idx = c(1))
-vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
-relate.clustering.measures(net,node.importance)
-
-# motif-based, for now jus centrality, measure
-# what part of total graph does motif occupy * betweeness centrality or average path length
-# or how much does removal of  motif effectt accuracy
-net<-extract.graphs(cluster.model.2)$A.true
-cl<-extract.clusters(cluster.model.2)
-node.importance<-node.importance.motif(motif.graphs,0.3)
-vis.weighted.graph(cl=cl, weight.scaling.factor=2, net.input=net, node.weight=node.importance)
-relate.clustering.measures(net,node.importance)
-
 ```
 
 # Animate the fitting procedures for the network
