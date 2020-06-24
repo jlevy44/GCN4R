@@ -205,6 +205,7 @@ classify.model.fit<- function (parameters, net.list, prediction_column=-1L, verb
   if (verbose){
     import_builtins()$print(log)
   }
+  parameters$predict<-T
   fit.model<-build.model.class(parameters,net.list,"gnn.classify.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
@@ -216,6 +217,7 @@ regression.model.fit<- function (parameters, net.list, prediction_column=-1L, ve
   if (verbose){
     import_builtins()$print(log)
   }
+  parameters$predict<-T
   fit.model<-build.model.class(parameters,net.list,"gnn.regress.model",prediction_column,loss.log=loss.log)
   return(fit.model)
 }
@@ -227,6 +229,7 @@ link.prediction.model.fit<- function (parameters, net.list, verbose=F){
   if (verbose){
     import_builtins()$print(log)
   }
+  parameters$predict<-T
   fit.model<-build.model.class(parameters,net.list,"gnn.link.model",loss.log=loss.log)
   return(fit.model)
 }
@@ -238,6 +241,7 @@ generative.model.fit<- function (parameters, net.list, verbose=F){
   if (verbose){
     import_builtins()$print(log)
   }
+  parameters$predict<-T
   fit.model<-build.model.class(parameters,net.list,"gnn.generative.model",loss.log=loss.log)
   return(fit.model)
 }
@@ -266,7 +270,7 @@ summary.gnn.generative.model<-function(gnn.model){
   import_builtins()$print(gnn.model$diagnostic.text)
 }
 
-summary.gnn.class.model<-function(gnn.model){
+summary.gnn.classify.model<-function(gnn.model){
   import_builtins()$print(gnn.model$diagnostic.text)
 }
 
@@ -292,6 +296,10 @@ extract.performance<- function(gnn.model) {
 
 extract.clusters<- function(gnn.model) {
   return(gnn.model$results$cl)
+}
+
+extract.prediction<- function(gnn.model) {
+  return(as.matrix(gnn.model$results$y$numpy()))
 }
 
 extract.embeddings<- function(gnn.model) {

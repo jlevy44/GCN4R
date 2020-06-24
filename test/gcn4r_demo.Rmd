@@ -165,7 +165,7 @@ vis.motif(motif.graphs,7L,cl,threshold=0.3)
 vis.motif(motif.graphs,70L,cl,threshold=0.3)
 # More advanced examples
 vis.motif(motif.graphs,4L,cl,threshold=0.3, weight.scaling.factor=1.5)
-vis.motif(motif.graphs,70L,cl,threshold=0.2, other.idx=c(60L, 7L, 4L))
+vis.motif(motif.graphs,70L,cl,threshold=0.45, other.idx=c(1L,12L))
 vis.motif(motif.graphs,70L,cl,threshold=0.25, weight.scaling.factor=1.5, other.idx=c(60L, 7L, 4L), centrality.measure="none")
 vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
 vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="clusterrank", floor.size=3, ceil.size=15)
@@ -177,21 +177,29 @@ vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="clusterrank", 
 # performance-based
 # change in cluster membership or decrease performance model
 cl<-extract.clusters(cluster.model)
-plot.node.importance(cluster.model,importance.type = "performance", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, floor.size = 2., ceil.size=10)
+importance.performance<-plot.node.importance(cluster.model,importance.type = "performance", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, floor.size = 2., ceil.size=10)
 
 # gradient-based
 # sum abs value node features
-plot.node.importance(cluster.model,importance.type = "gradient", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl)
+importance.gradient<-plot.node.importance(cluster.model,importance.type = "gradient", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl)
 
 # attention-based
 # strength of layer or aggregated across layers
-plot.node.importance(cluster.model,importance.type = "attention", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, layers.idx = c(1))
+importance.attention<-plot.node.importance(cluster.model,importance.type = "attention", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, layers.idx = c(1))
 
 # motif-based, for now just centrality, measure
 # what part of total graph does motif occupy * betweeness centrality or average path length
 # or how much does removal of  motif effect accuracy
 cl<-extract.clusters(cluster.model.2)
-plot.node.importance(cluster.model.2,importance.type = "motif", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, motif.threshold = 0.3)
+importance.motif<-plot.node.importance(cluster.model.2,importance.type = "motif", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, motif.threshold = 0.3)
+```
+```{r}
+plot(importance.attention,importance.performance,main = paste(toString(cor(importance.attention,importance.performance,method="spearman"))))
+plot(importance.attention,importance.motif, main=paste(toString(cor(importance.attention,importance.motif,method="spearman"))))
+
+
+
+
 ```
 
 # Matching graph embeddings to multivariate normal distribution
@@ -230,6 +238,31 @@ for (i in c(1,2,20,30)){
   lo<-make.layout(embedding)
   plot.net(net,cl,layout = lo)
 }
+```
+
+# Run classification model
+```{r}
+prediction.col<-which(colnames(net.list$X)=="office2")-1
+parameters.4<-update.parameters(parameters,list(ae_type="GAE",
+                                                K=2L,
+                                                lambda_kl=0,
+                                                lambda_recon=0.,
+                                                lambda_cluster=0.,
+                                                epoch_cluster=120L,
+                                                n_layers=2L,
+                                                lambda_pred=5.,
+                                                prediction_column=4L,
+                                                model_save_loc="prediction.model.pkl"))
+
+prediction.model<-classify.model.fit(parameters.4, net.list)
+plot.diagnostics(prediction.model)
+summary(prediction.model)
+
+z<-extract.embeddings(prediction.model)
+y<-apply(extract.prediction(prediction.model),1,function(x) which.max(x))
+lo<-make.layout(z)
+G.true<-extract.graphs(prediction.model)$A.true
+plot.net(G.true,y,layout=lo)
 ```
 
 # Animate the fitting procedures for the network
