@@ -335,7 +335,9 @@ class ModelTrainer:
 			elif self.task=="classification":
 				from sklearn.metrics import classification_report
 				print("Classification Diagnostics:")
-				print(classification_report(G.y.numpy(),y.argmax(1)))
+				for k in ['train','val','test']:
+					idx=G.idx_df.loc[G.idx_df['set']==k]['idx'].values
+					print(f"{k} results:\n",classification_report(G.y.numpy()[idx],y[idx].argmax(1)))
 				if y.shape[1]>2:
 					kwargs=dict(y_true=G.y.numpy(),y_score=y,multi_class="ovo",average="macro")
 				else:
@@ -343,7 +345,7 @@ class ModelTrainer:
 					y_true=LabelBinarizer().fit_transform(G.y.numpy())
 					kwargs=dict(y_true=y_true,y_score=y[:,1])
 				auc=roc_auc_score(**kwargs)
-				print("AUC:",auc)
+				print("Overall AUC:",auc)
 				performance=auc
 
 			elif self.task=='regression':
