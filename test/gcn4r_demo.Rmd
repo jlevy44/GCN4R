@@ -60,6 +60,7 @@ for (cat.var in c("gender","law_school","office","practice","status")){
 # Create design matrix to expand factors, update net.list
 ```{r}
 net.list$X<-model.matrix(~.,data=net.list$X)[,-1]
+head(net.list$X)
 ```
 
 # Visualize data
@@ -194,11 +195,21 @@ cl<-extract.clusters(cluster.model.2)
 importance.motif<-plot.node.importance(cluster.model.2,importance.type = "motif", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, motif.threshold = 0.3)
 ```
 ```{r}
-plot(importance.attention,importance.performance,main = paste(toString(cor(importance.attention,importance.performance,method="spearman"))))
-plot(importance.attention,importance.motif, main=paste(toString(cor(importance.attention,importance.motif,method="spearman"))))
+importances<-data.frame(attention=importance.attention,
+                       performance=importance.performance,
+                       motif=importance.motif,
+                       gradient=importance.gradient)
+ggplot(importances)+
+  geom_jitter(aes(attention,performance))+
+  labs(x="Attention Node Importance",y="Performance Node Importance")+
+  ggtitle(paste("Comparison of Attention to Performance Node Importances;","SpearmanR =",toString(round(cor(importance.attention,importance.performance,method="spearman"),2))))+
+  theme_minimal()
 
-
-
+ggplot(importances)+
+  geom_jitter(aes(attention,motif))+
+  labs(x="Attention Node Importance",y="Motif Node Importance")+
+  ggtitle(paste("Comparison of Attention to Motif Node Importances;","SpearmanR =",toString(round(cor(importance.attention,importance.motif,method="spearman"),2))))+
+  theme_minimal()
 
 ```
 
