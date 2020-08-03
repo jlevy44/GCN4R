@@ -1,6 +1,7 @@
 .onLoad <- function(libname, pkgname){
   library(reticulate)
   library(statnet)
+  library(sna)
   library(latentnet)
   library(wfg)
   library(igraph)
@@ -410,12 +411,14 @@ simulate.networks <- function(gnn.model,nsim=100) {
   parameters$task<-"generation"
   sim.graphs<-list()
   embeddings<-list()
+  Adj<-list()
   cl<-list()
   for (i in 1:nsim) {
     parameters$random_seed<-i
     invisible(py_capture_output(res<-do.call(GCN4R$api$train_model_, parameters)))
     A<-res$A
     embeddings[[i]]<-res$z
+    Adj[[i]]<-A
     A.adj<-matrix(as.integer(A>threshold),nrow=nrow(A))
     A<-get.edgelist(graph.adjacency(A.adj))
     sim.graphs[[i]]<-to.igraph(A,X)
@@ -423,7 +426,9 @@ simulate.networks <- function(gnn.model,nsim=100) {
   }
   sim.graphs<-list(networks=sim.graphs,
                    embeddings=embeddings,
-                   cl=cl)
+                   cl=cl,
+                   Adj=Adj
+                   )
   return(sim.graphs)
 }
 
@@ -762,7 +767,7 @@ relate.clustering.measures<-function(net,node.importance){
   print(summary(lm(transitivity(net,"local")~node.importance)))
 }
 
-ergm.network<-function(formula,gnn.model,add.dist=T,distance.metric="euclidean", simulate=F, pseudo=F, ...){
+ergm.network<-function(formula,gnn.model,add.dist=T,distance.metric="euclidean", use_ergmm=FALSE, simulate=F, pseudo=F, ...){
   net.list<-list(A=as.data.frame(gnn.model$parameters$sparse_matrix),
                  X=as.data.frame(gnn.model$parameters$feature_matrix))
   net.list$X$cl<-as.factor(extract.clusters(gnn.model))
@@ -785,12 +790,28 @@ ergm.network<-function(formula,gnn.model,add.dist=T,distance.metric="euclidean",
   } else {
     formula<-as.formula(deparse(formula))
   }
-  if (pseudo){
+  if (pseudo & !use_ergmm){
     return(ergmMPLE(formula,output="fit",...))
+  }
+  else if (use_ergmm) {
+    return(ergmm(formula,...))
   }
   else {
     return(ergm(formula,...))
   }
+}
+
+to.networkx <- function(A) {
+  return(GCN4R$api$nx$from_edgelist(A))
+}
+
+run.louvain<-function(net){
+  A<-as_edgelist(net)
+  coms<-GCN4R$api$cdlib$algorithms$louvain(to.networkx(A))
+  coms.dict<-coms$to_node_community_map()
+  coms<-unlist(lapply(1:nrow(A),function(i){coms.dict[i]}))
+  plot.net(net,coms)
+  return(coms)
 }
 
 ####################### OLD/DEPRECATED #######################
@@ -936,9 +957,6 @@ sim.and.plot <- function(nv=c(32, 32, 32, 32),
 
 }
 
-to.networkx <- function(A) {
-  return(GCN4R$api$nx$from_edgelist(A))
-}
 
 run.tests <- function(K=4L, use_mincut=T) {
   GCN4R<-import_gcn4r()

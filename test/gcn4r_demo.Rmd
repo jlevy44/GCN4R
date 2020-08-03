@@ -296,3 +296,128 @@ for(net.mod in list(net.mod0,net.mod1,net.mod2,net.mod3)){
 }
 ```
 
+# Comparisons to other R Libraries
+# Egocentric extraction
+```{r}
+sna.net<-asNetwork(net)
+ego.nets<-ego.extract(sna.net)
+set.seed(42)
+ego.net<-graph_from_adjacency_matrix(ego.nets[[23]])
+V(ego.net)$color<-V(ego.net)$name=="23"
+V(ego.net)$shape<-rep("circle",length(V(ego.net)$color))
+V(ego.net)$shape[V(ego.net)$name=="23"]<-"square"
+plot.net(ego.net)
+```
+
+# ERGM (link prediction; coefficients)
+```{r}
+summary(mod<-ergm(asNetwork(net)~edges+nodecov("seniority")+nodecov("age")+nodematch("practice")+nodematch("office")))
+set.seed(42)
+n.sim<-30
+Adj<-as_adjacency_matrix(asIgraph(simulate(mod)))
+for (i in 1:(n.sim-1)){
+  Adj<-Adj+as_adjacency_matrix(asIgraph(simulate(mod)))
+}
+Adj<-Adj/n.sim
+Adj
+plot.net(asIgraph(simulate(mod)))
+net.list.2<-net.list
+net.list.2$X<-net.list.2$X[,c("seniority","age","practice2","office2","office3")]
+net.list.2$A<-(net.list.2$A+t(net.list.2$A))/2
+diag(net.list.2$A)<-1
+parameters.5<-update.parameters(parameters,list(ae_type="ARGA",
+                                                K=3L,
+                                                n_hidden=50L,
+                                                lambda_kl=0.,
+                                                kl_warmup=80L,
+                                                val_ratio=0.1,
+                                                test_ratio=0.1,
+                                                lambda_adv=20.,
+                                                lambda_recon=30.,
+                                                lambda_cluster=0.,
+                                                epoch_cluster=80L,
+                                                n_layers=2L,
+                                                model_save_loc="link.model.pkl"))
+link.model<-link.prediction.model.fit(parameters.5, net.list.2)
+plot.diagnostics(link.model)
+summary(link.model)
+Adj<-as.matrix(Adj)
+diag(Adj)<-1.
+Adj.gnn<-simulate.networks(link.model,30)$Adj
+Adj.gnn2<-matrix(0,nrow=N,ncol=N)
+for (i in 1:n.sim){
+  Adj.gnn2<-Adj.gnn2+Adj.gnn[[i]]
+}
+Adj.gnn2<-Adj.gnn2/30
+Adj.true<-as.matrix(as_adjacency_matrix(extract.graphs(link.model)$A.true))
+diag(Adj.true)<-1
+sklearn<-import("sklearn")
+set.seed(42)
+sklearn$metrics$roc_auc_score(as.vector(Adj.true),as.vector(Adj))
+sklearn$metrics$roc_auc_score(as.vector(Adj.true),as.vector(as.matrix(as_adjacency_matrix(asIgraph(simulate(mod))))))
+sklearn$metrics$roc_auc_score(as.vector(Adj.true),as.vector(Adj.gnn2))
+
+opt.threshold<-optimize(function(x) -sklearn$metrics$f1_score(as.vector(Adj.true),as.vector(Adj>x)),c(0,1))$minimum
+sklearn$metrics$f1_score(as.vector(Adj.true),as.vector(Adj>opt.threshold))
+
+summary(link.model)
+```
+
+# Social Influence (should not do this on binary outcomes)
+```{r}
+# fit lnam model
+X<-data.frame(vertex_attr(net))
+geo.dist<-distances(net)
+inv.geo.dist<-geo.dist^(-1)
+diag(inv.geo.dist)<-0
+fit <- lnam(y=V(net)$practice,x=as.matrix(X[,c("seniority","age","gender")]),NULL,inv.geo.dist)
+
+# inspect autoregressive dependence
+summary(fit)
+
+# get social influence from fit model
+inf<-matrix(0,ncol=fit$df.total,nrow=fit$df.total)
+if(!is.null(fit$W1))
+   inf<-inf+qr.solve(diag(fit$df.total)-apply(sweep(fit$W1,1,fit$rho1,"*"), c(2,3),sum))
+if(!is.null(fit$W2))
+   inf<-inf+qr.solve(diag(fit$df.total)-apply(sweep(fit$W2,1,fit$rho2,"*"), c(2,3),sum))
+syminf<-abs(inf)+abs(t(inf))
+diag(syminf)<-0
+infco<-cmdscale(as.dist(max(syminf)-syminf),k=2)
+diag(inf)<-NA
+stdinf<-inf-mean(inf,na.rm=TRUE)
+infsd<-sd(as.vector(stdinf),na.rm=TRUE)
+stdinf<-stdinf/infsd
+stdinf[is.na(stdinf)]<-0
+
+# plot social influence matrix
+vis.weighted.graph(abs(stdinf),weight.scaling.factor = 0.7,cl=extract.clusters(cluster.model),threshold=1.96)
+
+# 
+vis.weighted.graph((attention.matrices[[1]])%*%(attention.matrices[[2]]),cl=extract.clusters(cluster.model))
+vis.weighted.graph(attention.matrices[[1]]%*%attention.matrices[[2]],cl=extract.clusters(cluster.model),threshold=0.05)
+vis.weighted.graph(attention.matrices[[1]],cl=extract.clusters(cluster.model),threshold=0.1)
+vis.weighted.graph(attention.matrices[[2]],cl=extract.clusters(cluster.model),threshold=0.002)
+```
+
+# Louvain Modularity / LatentNet Clustering
+```{r}
+# Louvain
+cl.louvain<-run.louvain(net)
+cl.gnn<-extract.clusters(cluster.model)
+
+sklearn$metrics$normalized_mutual_info_score(cl.gnn,cl.louvain)
+plot(cluster.model)
+
+# LatentNet
+latent.cluster.fit<-ergm.network(net~rreceiver+rsender+bilinear(d=2,G=3),cluster.model, distance.metric = "correlation",add.dist = F,simulate=F,pseudo=F, use_ergmm = T)
+summary(latent.cluster.fit)
+plot(latent.cluster.fit)
+cl.latent.net<-latent.cluster.fit$mcmc.mle$Z.K
+sklearn$metrics$normalized_mutual_info_score(cl.gnn,cl.latent.net)
+sklearn$metrics$normalized_mutual_info_score(cl.louvain,cl.latent.net)
+plot.net(net,group=cl.latent.net)
+lo<-make.layout(latent.cluster.fit$mcmc.mle$Z)
+plot.net(net,cl.latent.net,layout=lo)
+```
+

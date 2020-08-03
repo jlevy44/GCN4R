@@ -7,6 +7,7 @@ import gcn4r
 from gcn4r.models import get_model
 from gcn4r.model_trainer import ModelTrainer
 from torch_geometric.utils.convert import from_scipy_sparse_matrix, to_networkx
+from torch_geometric.utils import train_test_split_edges
 import scipy.sparse as sps
 import plotly.graph_objs as go
 import plotly.offline as py
@@ -284,7 +285,7 @@ def get_data_model(custom_dataset,
 					n_classes)
 
 	if task == 'link_prediction':
-		G=model.split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
+		G=train_test_split_edges(G, val_ratio=val_ratio, test_ratio=test_ratio)
 
 	if torch.cuda.is_available():
 		model=model.cuda()
