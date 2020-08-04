@@ -451,7 +451,6 @@ calc.centrality.measure<-function(net,measure="none",norm=T){
     } else if (measure=="strength"){
       norm.centrality.measure<-strength(net)
     }
-    print(norm.centrality.measure)
     norm.centrality.measure[is.nan(norm.centrality.measure)]=0
     if (norm){
       norm.centrality.measure=abs(norm.centrality.measure)
@@ -505,7 +504,6 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
     l <- layout
 
     if (!is.null(threshold)){
-      print(isolated.nodes)
       l<-l[-isolated.nodes,]
     }
   } else {
