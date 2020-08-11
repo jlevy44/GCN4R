@@ -11,6 +11,34 @@ from collections import defaultdict
 import copy
 from torch_geometric.utils import softmax
 
+class LatentSpaceDecoder(torch.nn.Module):
+	def __init__(self,n_latent,bias=True):
+		super(LatentSpaceDecoder,self).__init__()
+		self.W=nn.Linear(n_latent,n_latent,bias=bias)
+
+	def forward(self, z, edge_index, sigmoid=True):
+		value = (z[edge_index[0]] * self.W(z[edge_index[1]])).sum(dim=1)
+		return torch.sigmoid(value) if sigmoid else value
+
+	def forward_all(self, z, sigmoid=True):
+		adj = torch.matmul(z, self.W(z).t())
+		return torch.sigmoid(adj) if sigmoid else adj
+
+class LatentDistanceDecoder(torch.nn.Module):
+	def __init__(self,n_latent,bias=True,p=2.0,no_space=True):
+		super(LatentDistanceDecoder,self).__init__()
+		self.p=p
+		self.d=nn.PairwiseDistance(p=p)
+		self.W=nn.Linear(n_latent,n_latent,bias=bias) if not no_space else torch.eye(n_latent)
+
+	def forward(self, z, edge_index, sigmoid=True):
+		value = self.d(z[edge_index[0]],self.W(z[edge_index[1]]))
+		return torch.exp(-value) if sigmoid else value
+
+	def forward_all(self, z, sigmoid=True):
+		dist = torch.cdist(z,self.W(z),p=self.p)
+		return torch.exp(-dist) if sigmoid else dist
+
 class ExplainerModel(nn.Module):
 	def __init__(self, model, key='s'):
 		super(ExplainerModel, self).__init__()
@@ -155,7 +183,8 @@ def get_model(encoder_base='GCNConv',
 				K=10,
 				Niter=10,
 				interpret=False,
-				n_classes=-1):
+				n_classes=-1,
+				decoder="InnerProduct"):
 	conv_operators=dict(GraphConv=GraphConv,
 						GCNConv=GCNConv,
 						GATConv=GATConv,
@@ -165,6 +194,9 @@ def get_model(encoder_base='GCNConv',
 					VGAE=VGAE,
 					ARGA=ARGA,
 					ARGVA=ARGVA)
+	decoder=dict(LatentSpace=LatentSpaceDecoder(n_latent=n_hidden,bias=bias),
+					LatentDistance=LatentSpaceDecoder(n_latent=n_hidden,bias=bias,p=2.0),
+					InnerProduct=None)[decoder]
 	assert encoder_base in (list(conv_operators.keys())+([] if not interpret else ['GATConvInterpret']))
 	assert attention_heads == 1
 	assert ae_type in list(ae_types.keys())
@@ -175,5 +207,6 @@ def get_model(encoder_base='GCNConv',
 	model_inputs=dict(encoder=encoder)
 	if ae_type in ['ARGA','ARGVA']:
 		model_inputs['discriminator']=Discriminator(encoder.n_hidden,discriminator_layers)
+	model_inputs['decoder']=decoder
 	model=ae_model(**model_inputs)
 	return model
