@@ -201,6 +201,8 @@ cluster.model.fit<- function (parameters, net.list, verbose=F){
 
 classify.model.fit<- function (parameters, net.list, prediction_column=-1L, verbose=F){
   parameters$task<-"classification"
+  py <- import_builtins()
+  parameters$prediction_column<-py$int(which(colnames(net.list$X)==parameters$prediction_column)-1)
   parameters<-add.graph.info(parameters,net.list,prediction_column)
   log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
   if (verbose){
@@ -213,6 +215,8 @@ classify.model.fit<- function (parameters, net.list, prediction_column=-1L, verb
 
 regression.model.fit<- function (parameters, net.list, prediction_column=-1L, verbose=F){
   parameters$task<-"regression"
+  py <- import_builtins()
+  parameters$prediction_column<-py$int(which(colnames(net.list$X)==parameters$prediction_column)-1)
   parameters<-add.graph.info(parameters,net.list,prediction_column)
   log<-py_capture_output(loss.log<-do.call(GCN4R$api$train_model_, parameters))
   if (verbose){
@@ -398,7 +402,8 @@ plot.diagnostics <- function(gnn.model){
   melt(loss.log,id.vars="epoch")
   ggplot(data=melt(loss.log,id.vars="epoch"), aes(x=epoch, y=value)) +
     geom_line() +
-    facet_grid(rows = vars(variable), scales = "free")
+    facet_grid(rows = vars(variable), scales = "free") +
+    theme_bw()
 }
 
 ####################### SIMULATION #######################
@@ -466,14 +471,18 @@ weight.matrix.to.net<-function(weight_matrix,threshold=NULL){
     weight_matrix[(weight_matrix<threshold)]<-0.
   }
   net.true<-graph_from_adjacency_matrix(weight_matrix, mode="upper", weighted=TRUE)
+  if (!is.null(rownames(weight_matrix))){
+    V(net.true)$name<-rownames(weight_matrix)
+  }
   return(net.true)
 }
 
-vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL) {
+vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL, important.node.size=NULL) {
   set.seed(42)
   c_scale <- colorRamp(cscale.colors)
   if (!is.null(net.input)) {
     net.true<-net.input
+    weight_matrix<-net.input
   } else {
     net.true<-weight.matrix.to.net(weight_matrix,threshold)
   }
@@ -485,6 +494,14 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
     net.true<-net.true %>%
       set_vertex_attr("shape",value="square", index=important.nodes)
   }
+  if (!is.null(important.node.size)){
+    net.true<-net.true %>%
+      set_vertex_attr("size",value=important.node.size, index=important.nodes)
+  } else {
+    net.true<-net.true %>%
+      set_vertex_attr("size",value=NA)
+  }
+
   if (!is.null(threshold)){
     isolated.nodes <- which(degree(net.true)==0)
     net.true <- delete.vertices(net.true, isolated.nodes)
@@ -494,15 +511,20 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
   } else {
     norm.centrality.measure<-calc.centrality.measure(net.true,centrality.measure)
   }
-  V(net.true)$size <- floor.size+(ceil.size-floor.size)*norm.centrality.measure
+  if (length(norm.centrality.measure)>1){
+    V(net.true)$size[is.na(V(net.true)$size)] <- (floor.size+(ceil.size-floor.size)*norm.centrality.measure)[is.na(V(net.true)$size)]
+  } else {
+    V(net.true)$size[is.na(V(net.true)$size)] <- (floor.size+(ceil.size-floor.size)*norm.centrality.measure)
+  }
   if (!is.null(E(net.true)$weight)){
     weight<-E(net.true)$weight
     E(net.true)$width<-weight/max(weight)*weight.scaling.factor
-    E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+    if ((length(unique(E(net.true)$weight)))>1){
+      E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
+    }
   }
   if (!is.null(layout)){
     l <- layout
-
     if (!is.null(threshold)){
       l<-l[-isolated.nodes,]
     }
@@ -510,7 +532,7 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
     l <- layout_with_fr(net.true)
   }
   l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
-  plot(net.true, layout=l*1., rescale=F, edge.curved=0., vertex.label="", main="")
+  plot(net.true, layout=l*1., rescale=F, edge.curved=0., arrow.size=0, vertex.label="", main="")
   return(weight_matrix)
 }
 
@@ -645,6 +667,7 @@ vis.motif<-function(attributions,i,cl, weight.scaling.factor=2, cscale.colors=c(
     motif<-motif/(length(other.idx)+1)
   }
   weight.matrix<-vis.weighted.graph(motif, cl, weight.scaling.factor, cscale.colors, threshold, important.nodes = important.nodes,...)
+  return(weight.matrix)
 }
 
 cluster.performance.node.importance<-function(cluster.model){

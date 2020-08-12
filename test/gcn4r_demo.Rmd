@@ -156,19 +156,19 @@ motif.graphs<-extract.motifs(cluster.model.2)
 cl<-extract.clusters(cluster.model.2)
 predictor.importance<-build.importance.matrix(motif.graphs,cl,extract.features(cluster.model.2))
 
-vis.motif(motif.graphs,60L,cl,threshold=0.1)
+vis.motif(motif.graphs,60L,cl,threshold=0.1, weight.scaling.factor = 2., important.node.size=10) 
 vis.motif(motif.graphs,60L,cl,threshold=0.2)
-vis.motif(motif.graphs,60L,cl,threshold=0.3)
-vis.motif(motif.graphs,60L,cl,threshold=0.4)
+vis.motif(motif.graphs,60L,cl,threshold=0.3, weight.scaling.factor = 2., important.node.size=10)
+vis.motif(motif.graphs,60L,cl,threshold=0.4, weight.scaling.factor = 2., important.node.size=10)
 vis.motif(motif.graphs,60L,cl,threshold=0.5)
 
 vis.motif(motif.graphs,7L,cl,threshold=0.3)
 vis.motif(motif.graphs,70L,cl,threshold=0.3)
 # More advanced examples
 vis.motif(motif.graphs,4L,cl,threshold=0.3, weight.scaling.factor=1.5)
-vis.motif(motif.graphs,70L,cl,threshold=0.45, other.idx=c(1L,12L))
+vis.motif(motif.graphs,70L,cl,threshold=0.45, other.idx=c(1L,12L), weight.scaling.factor=1.5, important.node.size=10)
 vis.motif(motif.graphs,70L,cl,threshold=0.25, weight.scaling.factor=1.5, other.idx=c(60L, 7L, 4L), centrality.measure="none")
-vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
+motif<-vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="strength", floor.size=3, ceil.size=15)
 vis.motif(motif.graphs,23L,cl,threshold=0.35, centrality.measure="clusterrank", floor.size=3, ceil.size=15)
 
 ```
@@ -253,7 +253,6 @@ for (i in c(1,2,20,30)){
 
 # Run classification model
 ```{r}
-prediction.col<-which(colnames(net.list$X)=="office2")-1
 parameters.4<-update.parameters(parameters,list(ae_type="GAE",
                                                 K=2L,
                                                 lambda_kl=0,
@@ -262,7 +261,7 @@ parameters.4<-update.parameters(parameters,list(ae_type="GAE",
                                                 epoch_cluster=120L,
                                                 n_layers=2L,
                                                 lambda_pred=5.,
-                                                prediction_column=4L,
+                                                prediction_column="office2",
                                                 model_save_loc="prediction.model.pkl"))
 
 prediction.model<-classify.model.fit(parameters.4, net.list)
@@ -276,6 +275,7 @@ G.true<-extract.graphs(prediction.model)$A.true
 plot.net(G.true,y,layout=lo)
 ```
 
+# Miscellaneous / Deprecated
 # Animate the fitting procedures for the network
 ```{r}
 parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
@@ -302,11 +302,42 @@ for(net.mod in list(net.mod0,net.mod1,net.mod2,net.mod3)){
 sna.net<-asNetwork(net)
 ego.nets<-ego.extract(sna.net)
 set.seed(42)
-ego.net<-graph_from_adjacency_matrix(ego.nets[[23]])
+
+ego.net<-graph_from_adjacency_matrix(ego.nets[[23]],weighted=T)
 V(ego.net)$color<-V(ego.net)$name=="23"
 V(ego.net)$shape<-rep("circle",length(V(ego.net)$color))
 V(ego.net)$shape[V(ego.net)$name=="23"]<-"square"
+vis.weighted.graph(weight_matrix =ego.nets[[23]],cl=cl,important.nodes=23L,floor.size=6, important.node.size = 10)
 plot.net(ego.net)
+net.unweighted<-graph_from_adjacency_matrix(net.mat+t(net.mat),weighted=T,mode = "upper")
+ego.net<-make_ego_graph(net, order = 1, nodes = 24, mode = c("all"),mindist = 0)[[1]]
+degree.distribution(ego.net)
+
+ego.net.mat<-as.matrix(as_adjacency_matrix(ego.net))
+rownames(ego.net.mat)<-as.numeric(ego(net, order=1, nodes=24)[[1]])
+colnames(ego.net.mat)<-rownames(ego.net.mat)
+degree.distribution(graph_from_adjacency_matrix(ego.net.mat+t(ego.net.mat),"upper"))
+plot(ego.net)
+vis.weighted.graph(ego.net.mat,cl=cl,important.nodes=24,floor.size=6, important.node.size = 10)
+print(length(V(ego.net)))
+gd<-geodist(ego.net.mat)
+sum(!is.infinite(gd$gdist[24,]))
+gd$gdist[24,]
+gd<-geodist(asNetwork(net.unweighted))
+gd$gdist[24,]
+motif<-get.motif(motif.graphs,23L)>0.35
+motif<-motif+t(motif)
+gd<-geodist(motif)
+sum(is.infinite(gd$gdist[24,]))
+gd$gdist[24,]
+net.mat<-as_adjacency_matrix(net)
+length(E(net))
+length(E(net.unweighted))
+length(E(ego.net))
+length(V(ego.net))
+length(V(graph_from_adjacency_matrix(motif)))
+length(E(graph_from_adjacency_matrix(motif+t(motif),weighted=T,mode = "upper")))
+geodist(get.motif(motif.graphs,23L)>0.3)$gdist[24,]
 ```
 
 # ERGM (link prediction; coefficients)
@@ -436,7 +467,6 @@ net.list.2<-net.list
 net.list.2$X<-net.list.2$X[,c("seniority","age","practice2","gender2")]
 net.list.2$A<-(net.list.2$A+t(net.list.2$A))/2
 diag(net.list.2$A)<-0
-prediction.col<-which(colnames(net.list.2$X)=="practice2")-1
 parameters.6<-update.parameters(parameters,list(ae_type="GAE",
                                                 K=2L,
                                                 lambda_kl=0,
@@ -445,7 +475,7 @@ parameters.6<-update.parameters(parameters,list(ae_type="GAE",
                                                 epoch_cluster=120L,
                                                 n_layers=3L,
                                                 lambda_pred=5.,
-                                                prediction_column=2L,
+                                                prediction_column="practice2",
                                                 model_save_loc="prediction.model.2.pkl"))
 
 prediction.model<-classify.model.fit(parameters.6, net.list.2)
