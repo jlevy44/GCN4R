@@ -12,7 +12,7 @@ Then, install the R package:
 devtools::install_github("jlevy44/gcn4r")
 ```
 
-Then, either read our tutorial paper or check out our R Markdown tutorial (here)[https://github.com/jlevy44/GCN4R/blob/master/test/gcn4r_demo.Rmd] to get started.
+Then, either read our tutorial paper or check out our R Markdown tutorial [here](https://github.com/jlevy44/GCN4R/blob/master/test/gcn4r_demo.Rmd) to get started.
 
 ![im1](https://user-images.githubusercontent.com/19698023/98269730-1aae1280-1f5c-11eb-89ac-83aeebdeda71.jpeg)
 ![im2](https://user-images.githubusercontent.com/19698023/98269732-1bdf3f80-1f5c-11eb-8835-9a8b57ab1fb0.jpeg)
