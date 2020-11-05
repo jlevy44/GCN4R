@@ -484,17 +484,21 @@ summary(prediction.model)
 attn.matrices<-visualize.attention(prediction.model,plot=F)
 torch<-import("torch")
 for (i in 1:4){
-  vis.weighted.graph(attn.matrices[[i]],cl=torch$argmax(prediction.model$results$y,dim=1L)$numpy(),threshold=0.05)
+  vis.weighted.graph(attn.matrices[[i]],cl=X$practice,threshold=0.05,weight.scaling.factor = 2.5)
 }
 
-vis.weighted.graph(attn.matrices[[2]]%*%attn.matrices[[3]],cl=torch$argmax(prediction.model$results$y,dim=1L)$numpy(),threshold=0.06)
+vis.weighted.graph(attn.matrices[[2]]%*%attn.matrices[[3]],cl=X$practice,threshold=0.06,weight.scaling.factor = 2.5)
 
-vis.weighted.graph(attn.matrices[[1]]%*%attn.matrices[[2]]%*%attn.matrices[[3]]%*%attn.matrices[[4]],cl=torch$argmax(prediction.model$results$y,dim=1L)$numpy(),threshold=0.02,weight.scaling.factor = 0.75)
+vis.weighted.graph(attn.matrices[[1]]%*%attn.matrices[[2]]%*%attn.matrices[[3]]%*%attn.matrices[[4]],cl=X$practice,threshold=0.02,weight.scaling.factor = 0.75)
 
+vis.weighted.graph(abs(stdinf),weight.scaling.factor = 0.7,cl=X$practice,threshold=1.96)
+#torch$argmax(prediction.model$results$y,dim=1L)$numpy()
 ```
 
 # Louvain Modularity / LatentNet Clustering
 ```{r}
+sklearn<-import("sklearn")
+
 # Louvain
 cl.louvain<-run.louvain(net)
 cl.gnn<-extract.clusters(cluster.model)
@@ -509,8 +513,14 @@ plot(latent.cluster.fit)
 cl.latent.net<-latent.cluster.fit$mcmc.mle$Z.K
 sklearn$metrics$normalized_mutual_info_score(cl.gnn,cl.latent.net)
 sklearn$metrics$normalized_mutual_info_score(cl.louvain,cl.latent.net)
-plot.net(net,group=cl.latent.net)
 lo<-make.layout(latent.cluster.fit$mcmc.mle$Z)
 plot.net(net,cl.latent.net,layout=lo)
+
+set.seed(42)
+plot.net(net,group=cl.latent.net)
+set.seed(42)
+plot.net(net,group=cl.gnn)
+set.seed(42)
+plot.net(net,group=cl.louvain)
 ```
 
