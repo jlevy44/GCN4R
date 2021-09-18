@@ -477,7 +477,7 @@ weight.matrix.to.net<-function(weight_matrix,threshold=NULL){
   return(net.true)
 }
 
-vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL, important.node.size=NULL) {
+vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL, important.node.size=NULL, out.net=F) {
   set.seed(42)
   c_scale <- colorRamp(cscale.colors)
   if (!is.null(net.input)) {
@@ -533,7 +533,9 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
   }
   l <- norm_coords(l, ymin=-1, ymax=1, xmin=-1, xmax=1)
   plot(net.true, layout=l*1., rescale=F, edge.curved=0., arrow.size=0, vertex.label="", main="")
-  return(weight_matrix)
+  if (out.net){return(list(net=net.true,
+                           l=l))}
+  else {return(weight_matrix)}
 }
 
 visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,...){

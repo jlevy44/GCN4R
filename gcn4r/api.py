@@ -437,8 +437,10 @@ def interpret_model(custom_dataset='none',
 					lr=0.01,
 					node_idx=None,
 					threshold=None,
+					perturb="none",
+					erdos_flip_p=0.5,
 					**kwargs):
-	from gcn4r.interpret import captum_interpret_graph, return_attention_scores
+	from gcn4r.interpret import captum_interpret_graph, return_attention_scores, perturb_graph
 	assert mode in ['captum','attention','gnn_explainer']
 	if mode=='attention':
 		assert encoder_base=='GATConv'
@@ -466,6 +468,8 @@ def interpret_model(custom_dataset='none',
 													test_ratio,
 													prediction_column=prediction_column
 													)
+	G=perturb_graph(G, perturb=perturb, erdos_flip_p=erdos_flip_p)
+	edge_index=G.edge_index
 	model.load_state_dict(torch.load(model_save_loc))
 	model.train(False)
 	model.encoder.toggle_kmeans()

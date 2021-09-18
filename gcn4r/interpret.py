@@ -13,6 +13,10 @@ try:
 	from torch_geometric.utils import k_hop_subgraph, to_networkx
 except:
 	pass
+try:
+	from torch_geometric.utils import erdos_renyi_graph, negative_sampling, dropout_adj, sort_edge_index
+except:
+	pass
 
 def captum_interpret_graph(G, model, use_mincut, target=0, method='integrated_gradients'):
 	# assert use_mincut , "Interpretations only work for min-cut pooling for now"
@@ -156,3 +160,15 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold
 		subgraphs[i]=dict(node_feat=node_feat_mask.numpy(),
 						  explain_graph=explainer2graph(i,explainer,edge_mask,edge_index,threshold,y))
 	return subgraphs
+
+def perturb_graph(G, perturb="none", erdos_flip_p=0.5):
+	assert perturb in ['none','erdos','flip']
+	x,edge_index=G.x,G.edge_index
+	if perturb=='erdos':
+		edge_index=erdos_renyi_graph(num_nodes=x.shape[0],p=erdos_flip_p)
+	elif perturb=='flip':
+		edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])[0]
+		edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p*x.shape[0])))
+		edge_index=sort_edge_index(torch.hstack([edge_index_pos,edge_index_neg]))
+	G.edge_index=edge_index
+	return G
