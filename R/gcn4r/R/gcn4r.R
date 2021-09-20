@@ -23,6 +23,8 @@
   library(rdist)
   library(stats)
   library(linkcomm)
+  library(comprehenr)
+  library(abind)
 }
 
 ####################### IMPORT #######################
@@ -477,7 +479,7 @@ weight.matrix.to.net<-function(weight_matrix,threshold=NULL){
   return(net.true)
 }
 
-vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL, important.node.size=NULL, out.net=F) {
+vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, cscale.colors=c("grey","red"), threshold=NULL, important.nodes=NULL, floor.size=5, ceil.size=10, centrality.measure="none", net.input=NULL, node.weight=NULL, layout=NULL, important.node.size=NULL, out.net=F, use.connected=F) {
   set.seed(42)
   c_scale <- colorRamp(cscale.colors)
   if (!is.null(net.input)) {
@@ -523,7 +525,14 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
       E(net.true)$color = apply(c_scale(weight/max(weight)), 1, function(x) rgb(x[1]/255,x[2]/255,x[3]/255) )
     }
   }
-  if (!is.null(layout)){
+  if (use.connected){
+    components <- clusters(net.true, mode="weak")
+    biggest_cluster_id <- which.max(components$csize)
+    vert_ids <- V(net.true)[components$membership == biggest_cluster_id]
+    net.true<-induced_subgraph(net.true, vert_ids)
+  }
+
+  if ((!is.null(layout)) & (!use.connected)){
     l <- layout
     if (!is.null(threshold)){
       l<-l[-isolated.nodes,]
@@ -538,9 +547,13 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
   else {return(weight_matrix)}
 }
 
-visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,...){
+visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,...){
+  gnn.model<-perturb.graph(gnn.model,perturb,erdos_flip_p,erdos_flip_p_neg,random_seed)
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"attention"
+  parameters$perturb<-perturb
+  parameters$erdos_flip_p<-erdos_flip_p
+  parameters$erdos_flip_p_neg<-erdos_flip_p_neg
   attribution<-do.call(GCN4R$api$interpret_model, parameters)
   cl<-NULL
   if (class(gnn.model)[2]=='gnn.cluster.model'){
@@ -571,9 +584,13 @@ visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=
   return(weight_matrices)
 }
 
-interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients",plot=T){
+interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients",plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01){
+  gnn.model<-perturb.graph(gnn.model,perturb,erdos_flip_p,erdos_flip_p_neg,random_seed)
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"captum"
+  parameters$perturb<-perturb
+  parameters$erdos_flip_p<-erdos_flip_p
+  parameters$erdos_flip_p_neg<-erdos_flip_p_neg
   py_capture_output(attributions<-do.call(GCN4R$api$interpret_model, parameters))
   classes<-names(attributions)
   classes<-classes[classes!="cluster_assignments"]
@@ -600,11 +617,16 @@ interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradien
   return(attr.list)
 }
 
-extract.motifs<-function(gnn.model,node_idx=NULL){
+extract.motifs<-function(gnn.model,node_idx=NULL,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,random_seed=42L){
   nx<-import('networkx')
   py <- import_builtins()
+  gnn.model<-perturb.graph(gnn.model,perturb,erdos_flip_p,erdos_flip_p_neg,random_seed)
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"gnn_explainer"
+  parameters$perturb<-perturb
+  parameters$erdos_flip_p<-erdos_flip_p
+  parameters$erdos_flip_p_neg<-erdos_flip_p_neg
+  parameters$random_seed<-random_seed
   nodes<-lapply(as.integer(V(extract.graphs(gnn.model)$A.true)$name)-1,function(x){py$int(x)})
   if (!is.null(node_idx)){
     parameters$node_idx<-node_idx
@@ -755,6 +777,36 @@ plot.node.importance<-function(gnn.model,importance.type="performance",layers.id
   return(node.importance)
 }
 
+####################### SIGNIFICANCE #######################
+
+get.nonzero<-function(x){
+  return(x[x>0])
+}
+
+return.significant.motif<-function(gnn.model, node_idx=1L, n.samples=180L,perturb="flip",erdos_flip_p = 0.3,erdos_flip_p_neg = 5e-2, prop=0.9, diff=0.3, test="wilcox"){
+  motif.graphs.node.i<-extract.motifs(gnn.model,node_idx=c(node_idx))[[as.character(node_idx)]]$G
+  motif.graphs.node.i.perturb<-to_list(for (i in 1L:n.samples)
+    extract.motifs(gnn.model,node_idx=c(node_idx),perturb=perturb,erdos_flip_p = erdos_flip_p,erdos_flip_p_neg = erdos_flip_p_neg, random_seed = i)[[as.character(node_idx)]]$G
+  )
+  motif.graphs.node.i.perturb<-do.call(abind,c(motif.graphs.node.i.perturb,list(along=3)))
+  idx.test<-which(motif.graphs.node.i>0,arr.ind=TRUE)
+  if (!test %in% c("wilcox","prop","diff")){test<-"wilcox"}
+  if (test=="wilcox"){
+    idx.test<-idx.test[to_vec(for (i in 1:nrow(idx.test)) wilcox.test(get.nonzero(motif.graphs.node.i.perturb[idx.test[i,"row"],idx.test[i,"col"],]), mu = motif.graphs.node.i[idx.test[i,"row"],idx.test[i,"col"]], alternative = "greater")$p.val*nrow(idx.test))>=0.05,]
+  } else if (test =="prop"){
+    idx.test<-idx.test[to_vec(for (i in 1:nrow(idx.test)) mean(get.nonzero(motif.graphs.node.i.perturb[idx.test[i,"row"],idx.test[i,"col"],])<motif.graphs.node.i[idx.test[i,"row"],idx.test[i,"col"]]))<=prop,]
+  } else if (test=="diff"){
+    idx.test<-idx.test[to_vec(for (i in 1:nrow(idx.test)) mean(motif.graphs.node.i[idx.test[i,"row"],idx.test[i,"col"]]-get.nonzero(motif.graphs.node.i.perturb[idx.test[i,"row"],idx.test[i,"col"],]))<=diff),]
+  }
+  motif.graphs.node.i.tmp<-motif.graphs.node.i
+  for (i in 1:nrow(idx.test)){
+    motif.graphs.node.i.tmp[idx.test[i,"row"],idx.test[i,"col"]]<-0
+  }
+  return(list(original=motif.graphs.node.i,
+              new=motif.graphs.node.i.tmp))
+}
+
+
 ####################### MISC #######################
 
 animate.plot<-function(animate.model,gif_file="animate.gif", delay=0.2, res = 92){
@@ -835,6 +887,31 @@ run.louvain<-function(net){
   coms<-unlist(lapply(1:nrow(A),function(i){coms.dict[i]}))
   plot.net(net,coms)
   return(coms)
+}
+
+pyg.seed<-function(seed=42L){
+  GCN4R$api$update_seed(seed)
+}
+
+perturb.graph<-function(gnn.model,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,random_seed=42L){
+  set.seed(random_seed)
+  if ("sparse_matrix" %in% names(gnn.model$parameters) & perturb=="flip"){
+    sparse_matrix<-gnn.model$parameters$sparse_matrix
+    idx.pos<-which(sparse_matrix==1,arr.ind=T)
+    idx.neg<-which(sparse_matrix==0,arr.ind=T)
+    select.pos<-runif(nrow(idx.pos))<=erdos_flip_p
+    select.neg<-runif(nrow(idx.neg))<=erdos_flip_p_neg
+    idx.neg.new<-idx.pos[select.pos,]
+    idx.pos.new<-idx.neg[select.neg,]
+    for (i in 1:nrow(idx.neg.new)){
+      sparse_matrix[idx.neg.new[i,"row"],idx.neg.new[i,"col"]]<-0
+    }
+    for (i in 1:nrow(idx.pos.new)){
+      sparse_matrix[idx.pos.new[i,"row"],idx.pos.new[i,"col"]]<-1
+    }
+    gnn.model$parameters$sparse_matrix<-sparse_matrix
+  }
+  return(gnn.model)
 }
 
 ####################### OLD/DEPRECATED #######################

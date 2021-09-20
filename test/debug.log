@@ -1,0 +1,68 @@
+Source path:... /anaconda2/envs/gcn4r/lib/python3.7/site-packages/gcn4r/interpret.py
+Starting var:.. G = Data(edge_attr=[854], edge_index=[2, 854], x=[71, 9])
+Starting var:.. perturb = 'flip'
+Starting var:.. erdos_flip_p = 0.9
+19:22:40.877185 call       166 def perturb_graph(G, perturb="none", erdos_flip_p=0.5):
+19:22:40.880423 line       167 	assert perturb in ['none','erdos','flip']
+19:22:40.883829 line       168 	x,edge_index=G.x,G.edge_index
+New var:....... x = tensor([[64.,  0.,  0.,  0.,  0.,  0.,  0., 31.,...  [26.,  1.,  1.,  0.,  0.,  0.,  0.,  1.,  1.]])
+New var:....... edge_index = tensor([[ 0,  0,  0,  ..., 70, 70, 70],        [40, 51, 55,  ..., 66, 67, 68]])
+19:22:40.884915 line       169 	if perturb=='erdos':
+19:22:40.904421 line       171 	elif perturb=='flip':
+19:22:40.922591 line       172 		edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])[0]
+New var:....... edge_index_pos = tensor([[ 3,  4,  4,  7,  9, 11, 11, 12, 12, 13,...33, 33, 40, 56, 61, 67, 69, 21, 53, 61, 27, 12]])
+19:22:40.944878 line       173 		edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p*(x.shape[0]*(x.shape[0]-1)/2-edge_index.shape[1]))))
+New var:....... edge_index_neg = tensor([[12,  2, 31,  ...,  8, 48, 37],        [60, 62, 52,  ..., 11, 38, 60]])
+19:22:40.986803 line       174 		edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
+Modified var:.. edge_index = tensor([[ 3,  4,  4,  ...,  8, 48, 37],        [53, 30, 41,  ..., 11, 38, 60]])
+19:22:41.010029 line       175 	G.edge_index=edge_index
+Modified var:.. G = Data(edge_attr=[854], edge_index=[2, 1553], x=[71, 9])
+19:22:41.035631 line       176 	return G
+19:22:41.052922 return     176 	return G
+Return value:.. Data(edge_attr=[854], edge_index=[2, 1553], x=[71, 9])
+Source path:... /anaconda2/envs/gcn4r/lib/python3.7/site-packages/gcn4r/interpret.py
+Starting var:.. G = Data(edge_attr=[854], edge_index=[2, 854], x=[71, 9])
+Starting var:.. perturb = 'flip'
+Starting var:.. erdos_flip_p = 0.9
+19:25:45.710712 call       166 def perturb_graph(G, perturb="none", erdos_flip_p=0.5):
+19:25:45.711838 line       167 	assert perturb in ['none','erdos','flip']
+19:25:45.712019 line       168 	x,edge_index=G.x,G.edge_index
+New var:....... x = tensor([[64.,  0.,  0.,  0.,  0.,  0.,  0., 31.,...  [26.,  1.,  1.,  0.,  0.,  0.,  0.,  1.,  1.]])
+New var:....... edge_index = tensor([[ 0,  0,  0,  ..., 70, 70, 70],        [40, 51, 55,  ..., 66, 67, 68]])
+19:25:45.712187 line       169 	if perturb=='erdos':
+19:25:45.721901 line       171 	elif perturb=='flip':
+19:25:45.738777 line       172 		edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])
+New var:....... edge_index_pos = (tensor([[ 3,  4,  4,  7,  9, 11, 11, 12, 12, 13... 40, 56, 61, 67, 69, 21, 53, 61, 27, 12]]), None)
+19:25:45.752509 line       173 		a=edge_index_pos[0].shape
+New var:....... a = torch.Size([2, 85])
+19:25:45.770867 line       174 		edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p*(x.shape[0]*(x.shape[0]-1)/2-edge_index.shape[1]))))
+New var:....... edge_index_neg = tensor([[12,  2, 31,  ...,  8, 48, 37],        [60, 62, 52,  ..., 11, 38, 60]])
+19:25:45.799501 line       175 		b=edge_index_neg.shape
+New var:....... b = torch.Size([2, 1468])
+19:25:45.814308 line       176 		edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
+19:25:45.830777 exception  176 		edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
+TypeError: expected Tensor as element 0 in argument 0, but got tuple
+Call ended by exception
+Source path:... /anaconda2/envs/gcn4r/lib/python3.7/site-packages/gcn4r/interpret.py
+Starting var:.. G = Data(edge_attr=[854], edge_index=[2, 854], x=[71, 9])
+Starting var:.. perturb = 'flip'
+Starting var:.. erdos_flip_p = 0.9
+19:28:25.725421 call       166 def perturb_graph(G, perturb="none", erdos_flip_p=0.5):
+19:28:25.726956 line       167 	assert perturb in ['none','erdos','flip']
+19:28:25.727201 line       168 	x,edge_index=G.x,G.edge_index
+New var:....... x = tensor([[64.,  0.,  0.,  0.,  0.,  0.,  0., 31.,...  [26.,  1.,  1.,  0.,  0.,  0.,  0.,  1.,  1.]])
+New var:....... edge_index = tensor([[ 0,  0,  0,  ..., 70, 70, 70],        [40, 51, 55,  ..., 66, 67, 68]])
+19:28:25.727497 line       169 	if perturb=='erdos':
+19:28:25.735949 line       171 	elif perturb=='flip':
+19:28:25.744038 line       172 		edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])
+New var:....... edge_index_pos = (tensor([[ 3,  4,  4,  7,  9, 11, 11, 12, 12, 13... 40, 56, 61, 67, 69, 21, 53, 61, 27, 12]]), None)
+19:28:25.753552 line       173 		a=edge_index_pos[0].shape
+New var:....... a = torch.Size([2, 85])
+19:28:25.762573 line       174 		edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p*(x.shape[0]*(x.shape[0]-1)/2-edge_index.shape[1]))))
+New var:....... edge_index_neg = tensor([[12,  2, 31,  ...,  8, 48, 37],        [60, 62, 52,  ..., 11, 38, 60]])
+19:28:25.779039 line       175 		b=edge_index_neg.shape
+New var:....... b = torch.Size([2, 1468])
+19:28:25.788321 line       176 		edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
+19:28:25.798413 exception  176 		edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
+TypeError: expected Tensor as element 0 in argument 0, but got tuple
+Call ended by exception

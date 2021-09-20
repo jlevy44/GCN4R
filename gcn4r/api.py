@@ -412,7 +412,7 @@ def train_model_(#inputs_dir,
 
 def interpret_model(custom_dataset='none',
 					task='clustering',
-					random_seed=42,
+					random_seed=SEED,
 					sparse_matrix='A.npz',
 					feature_matrix='X.npy',
 					initialize_spectral=False,
@@ -439,6 +439,7 @@ def interpret_model(custom_dataset='none',
 					threshold=None,
 					perturb="none",
 					erdos_flip_p=0.5,
+					erdos_flip_p_neg=1e-2,
 					**kwargs):
 	from gcn4r.interpret import captum_interpret_graph, return_attention_scores, perturb_graph
 	assert mode in ['captum','attention','gnn_explainer']
@@ -447,6 +448,7 @@ def interpret_model(custom_dataset='none',
 		encoder_base='GATConvInterpret'
 	elif mode=='gnn_explainer':
 		assert encoder_base=='GCNConv'
+	update_seed(random_seed)
 	G,model,X,edge_index,edge_attr=get_data_model(custom_dataset,
 													task,
 													random_seed,
@@ -468,7 +470,7 @@ def interpret_model(custom_dataset='none',
 													test_ratio,
 													prediction_column=prediction_column
 													)
-	G=perturb_graph(G, perturb=perturb, erdos_flip_p=erdos_flip_p)
+	G=perturb_graph(G, perturb=perturb, erdos_flip_p=erdos_flip_p, erdos_flip_p_neg=erdos_flip_p_neg)
 	edge_index=G.edge_index
 	model.load_state_dict(torch.load(model_save_loc))
 	model.train(False)
@@ -513,3 +515,9 @@ def visualize_(predictions_save_path,
 	pp=PlotlyPlot()
 	pp.add_plot(t_data, G, size=size)
 	pp.plot(output_fname=output_fname,axes_off=axes_off)
+
+def update_seed(seed=42):
+	random.seed(seed)
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+	if torch.cuda.is_available(): torch.cuda.manual_seed_all(seed)

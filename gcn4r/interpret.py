@@ -161,14 +161,15 @@ def explain_nodes(G, model, task, y, node_idx=10, epochs=100, lr=0.01, threshold
 						  explain_graph=explainer2graph(i,explainer,edge_mask,edge_index,threshold,y))
 	return subgraphs
 
-def perturb_graph(G, perturb="none", erdos_flip_p=0.5):
+def perturb_graph(G, perturb="none", erdos_flip_p=0.5, erdos_flip_p_neg=1e-2):
 	assert perturb in ['none','erdos','flip']
 	x,edge_index=G.x,G.edge_index
 	if perturb=='erdos':
-		edge_index=erdos_renyi_graph(num_nodes=x.shape[0],p=erdos_flip_p)
-	elif perturb=='flip':
-		edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])[0]
-		edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p*x.shape[0])))
-		edge_index=sort_edge_index(torch.hstack([edge_index_pos,edge_index_neg]))
+		edge_index=erdos_renyi_graph(num_nodes=x.shape[0],edge_prob=erdos_flip_p)
+	# elif perturb=='flip':
+	# 	raise NotImplementedError
+	# 	edge_index_pos=dropout_adj(edge_index,p=erdos_flip_p,num_nodes=x.shape[0])[0]
+	# 	edge_index_neg=negative_sampling(edge_index,num_nodes=x.shape[0],num_neg_samples=int(round(erdos_flip_p_neg*(x.shape[0]*(x.shape[0]-1)/2-edge_index.shape[1]))))
+	# 	edge_index=torch.cat([edge_index_pos,edge_index_neg],dim=1)#sort_edge_index()
 	G.edge_index=edge_index
 	return G

@@ -195,7 +195,7 @@ def get_model(encoder_base='GCNConv',
 					ARGA=ARGA,
 					ARGVA=ARGVA)
 	decoder=dict(LatentSpace=LatentSpaceDecoder(n_latent=n_hidden,bias=bias),
-					LatentDistance=LatentSpaceDecoder(n_latent=n_hidden,bias=bias,p=2.0),
+					LatentDistance=LatentDistanceDecoder(n_latent=n_hidden,bias=bias,p=2.0),
 					InnerProduct=None)[decoder]
 	assert encoder_base in (list(conv_operators.keys())+([] if not interpret else ['GATConvInterpret']))
 	assert attention_heads == 1
