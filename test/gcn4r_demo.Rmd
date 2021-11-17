@@ -3,8 +3,8 @@ title: "GCN4R_demo"
 author: "Joshua Levy"
 date: "4/28/2020"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -14,8 +14,9 @@ library(gcn4r)
 
 # Install package
 ```{r}
+# uncomment for installation
 # install.packages("reticulate")
-# devtools::install_github("jlevy44/gcn4r")
+# devtools::install_github("jlevy44/gcn4r",ref="master")
 # conda_create("gcn4r")
 # conda_install("gcn4r", "gcn4r",pip=T)
 # use_condaenv("gcn4r")
@@ -25,7 +26,7 @@ library(gcn4r)
 # Import Library, link anaconda to R studio
 ```{r}
 # http://moreno.ss.uci.edu/data.html
-reticulate:::conda_list(conda = "auto")
+# reticulate:::conda_list(conda = "auto")
 reticulate::use_condaenv(condaenv = "gcn4r", conda = "/anaconda2/bin/conda")
 reticulate:::use_python("/anaconda2/envs/gcn4r/bin/python")
 GCN4R<-import_gcn4r()
@@ -94,7 +95,6 @@ new.parameters<-list(encoder_base="GATConv",
 parameters<-update.parameters(parameters,new.parameters)
 ```
 
-
 # Fit cluster, embedding, classification, generation, or link prediction model
 ```{r}
 cluster.model<-cluster.model.fit(parameters, net.list,verbose=F)
@@ -151,12 +151,15 @@ summary(cluster.model.2)
 Motif Visualization:
 ```{r}
 motif.graphs<-extract.motifs(cluster.model.2)
-# extract specific motifs
-# motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L))
+
+# extract specific motifs, with some perturbation of edges
+motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L))
+motif.graphs.2<-extract.motifs(cluster.model.2,node_idx=c(4L,7L,23L,60L,70L),perturb="erdos",erdos_flip_p = 0.4, random_seed = 43L)
+
 cl<-extract.clusters(cluster.model.2)
 predictor.importance<-build.importance.matrix(motif.graphs,cl,extract.features(cluster.model.2))
 
-vis.motif(motif.graphs,60L,cl,threshold=0.1, weight.scaling.factor = 2., important.node.size=10) 
+vis.motif(motif.graphs.2,60L,cl,threshold=0.1, weight.scaling.factor = 2., important.node.size=10) 
 vis.motif(motif.graphs,60L,cl,threshold=0.2)
 vis.motif(motif.graphs,60L,cl,threshold=0.3, weight.scaling.factor = 2., important.node.size=10)
 vis.motif(motif.graphs,60L,cl,threshold=0.4, weight.scaling.factor = 2., important.node.size=10)
@@ -194,6 +197,8 @@ importance.attention<-plot.node.importance(cluster.model,importance.type = "atte
 cl<-extract.clusters(cluster.model.2)
 importance.motif<-plot.node.importance(cluster.model.2,importance.type = "motif", relate.cluster.meas=T, weight.scaling.factor=2, cl=cl, motif.threshold = 0.3)
 ```
+
+# importance comparison
 ```{r}
 importances<-data.frame(attention=importance.attention,
                        performance=importance.performance,
@@ -244,10 +249,10 @@ plot.diagnostics(embedding.model)
 sim.graphs<-simulate.networks(embedding.model,nsim=30)
 cl<-extract.clusters(embedding.model)
 for (i in c(1,2,20,30)){
-  net<-sim.graphs$networks[[i]]
+  net.sim<-sim.graphs$networks[[i]]
   embedding<-sim.graphs$embeddings[[i]]
   lo<-make.layout(embedding)
-  plot.net(net,cl,layout = lo)
+  plot.net(net.sim,cl,layout = lo)
 }
 ```
 
@@ -275,158 +280,8 @@ G.true<-extract.graphs(prediction.model)$A.true
 plot.net(G.true,y,layout=lo)
 ```
 
-# Miscellaneous / Deprecated
-# Animate the fitting procedures for the network
-```{r}
-parameters.4<-update.parameters(parameters,list(animation_save_file="animation.pkl"))
-animate.model<-cluster.model.fit(parameters.4, net.list)
-animate.plot(animate.model,res=200, delay = 0.04)
-```
-
-# Add GNN terms to ERGM model (could attention matrix be used for peer effects?)
-```{r}
-cl<-extract.clusters(cluster.model)
-summary(net.mod0<-ergm.network(net~edges,cluster.model, add.dist = F,simulate=F,pseudo=T))
-summary(net.mod1<-ergm.network(net~edges+nodematch("cl",diff=T),cluster.model, add.dist = F,simulate=F,pseudo=T))
-summary(net.mod2<-ergm.network(net~edges,cluster.model, distance.metric = "correlation",add.dist = T,simulate=F,pseudo=T))
-summary(net.mod3<-ergm.network(net~edges+nodematch("cl",diff=T)+triangle,cluster.model, distance.metric = "euclidean",add.dist = T,simulate=F,pseudo=T))
-plot.net(extract.graphs(cluster.model)$A.true,cl)
-for(net.mod in list(net.mod0,net.mod1,net.mod2,net.mod3)){
-  plot.net(asIgraph(simulate(net.mod)),cl)
-}
-```
-
 # Comparisons to other R Libraries
-# Egocentric extraction
-```{r}
-sna.net<-asNetwork(net)
-ego.nets<-ego.extract(sna.net)
-set.seed(42)
-
-ego.net<-graph_from_adjacency_matrix(ego.nets[[23]],weighted=T)
-V(ego.net)$color<-V(ego.net)$name=="23"
-V(ego.net)$shape<-rep("circle",length(V(ego.net)$color))
-V(ego.net)$shape[V(ego.net)$name=="23"]<-"square"
-vis.weighted.graph(weight_matrix =ego.nets[[23]],cl=cl,important.nodes=23L,floor.size=6, important.node.size = 10)
-plot.net(ego.net)
-net.unweighted<-graph_from_adjacency_matrix(net.mat+t(net.mat),weighted=T,mode = "upper")
-ego.net<-make_ego_graph(net, order = 1, nodes = 24, mode = c("all"),mindist = 0)[[1]]
-degree.distribution(ego.net)
-
-ego.net.mat<-as.matrix(as_adjacency_matrix(ego.net))
-rownames(ego.net.mat)<-as.numeric(ego(net, order=1, nodes=24)[[1]])
-colnames(ego.net.mat)<-rownames(ego.net.mat)
-degree.distribution(graph_from_adjacency_matrix(ego.net.mat+t(ego.net.mat),"upper"))
-plot(ego.net)
-vis.weighted.graph(ego.net.mat,cl=cl,important.nodes=24,floor.size=6, important.node.size = 10)
-print(length(V(ego.net)))
-gd<-geodist(ego.net.mat)
-sum(!is.infinite(gd$gdist[24,]))
-gd$gdist[24,]
-gd<-geodist(asNetwork(net.unweighted))
-gd$gdist[24,]
-motif<-get.motif(motif.graphs,23L)>0.35
-motif<-motif+t(motif)
-gd<-geodist(motif)
-sum(is.infinite(gd$gdist[24,]))
-gd$gdist[24,]
-net.mat<-as_adjacency_matrix(net)
-length(E(net))
-length(E(net.unweighted))
-length(E(ego.net))
-length(V(ego.net))
-length(V(graph_from_adjacency_matrix(motif)))
-length(E(graph_from_adjacency_matrix(motif+t(motif),weighted=T,mode = "upper")))
-geodist(get.motif(motif.graphs,23L)>0.3)$gdist[24,]
-```
-
-# ERGM (link prediction; coefficients)
-```{r}
-summary(mod<-ergm(asNetwork(net)~edges+nodecov("seniority")+nodecov("age")+nodematch("practice")+nodematch("office")))
-
-set.seed(42)
-n.sim<-50
-Adj<-as_adjacency_matrix(asIgraph(simulate(mod)))
-for (i in 1:(n.sim-1)){
-  Adj<-Adj+as_adjacency_matrix(asIgraph(simulate(mod)))
-}
-Adj<-Adj/n.sim
-Adj<-as.matrix(Adj)
-diag(Adj)<-0.
-
-net.list.2<-net.list
-net.list.2$X<-net.list.2$X[,c("seniority","age","practice2","office2","office3")]
-net.list.2$A<-(net.list.2$A+t(net.list.2$A))/2
-diag(net.list.2$A)<-0
-parameters.5<-update.parameters(parameters,list(ae_type="ARGA",
-                                                K=3L,
-                                                n_hidden=50L,
-                                                lambda_kl=0.,
-                                                kl_warmup=80L,
-                                                val_ratio=0.1,
-                                                test_ratio=0.1,
-                                                lambda_adv=5.,
-                                                lambda_recon=30.,
-                                                lambda_cluster=0.,
-                                                epoch_cluster=80L,
-                                                n_layers=2L,
-                                                model_save_loc="link.model.pkl"))
-link.model<-link.prediction.model.fit(parameters.5, net.list.2)
-plot.diagnostics(link.model)
-summary(link.model)
-
-Adj.true<-as.matrix(as_adjacency_matrix(extract.graphs(link.model)$A.true))
-diag(Adj.true)<-0
-sklearn<-import("sklearn")
-set.seed(42)
-Adj.gnn<-link.model$results$A
-diag(Adj.gnn)<-0.
-N<-length(as.vector(Adj.gnn))
-idx<-1:N
-y_true<-as.vector(Adj.true)
-y_pred.gnn<-as.vector(Adj.gnn)
-y_pred.ergm<-as.vector(Adj)
-set.seed(42)
-y_pred.ergm.sim<-as.vector(as.matrix(as_adjacency_matrix(asIgraph(simulate(mod)))))
-boot.auc<-function(y.true,y.pred){
-  set.seed(42)
-  aucs<-c()
-  for (i in 1:1000){
-    idx.new<-sample(idx,N,replace=T)
-    aucs<-c(aucs,sklearn$metrics$roc_auc_score(y.true[idx.new],y.pred[idx.new]))
-  }
-  return(aucs)
-}
-
-aucs.gnn<-boot.auc(y_true,y_pred.gnn)
-plot(density(aucs.gnn))
-
-aucs.ergm<-boot.auc(y_true,y_pred.ergm)
-plot(density(aucs.ergm))
-
-aucs.sim<-boot.auc(y_true,y_pred.ergm.sim)
-plot(density(aucs.sim))
-
-wilcox.test(aucs.ergm,aucs.gnn,alternative="greater")
-
-c(sort(aucs.gnn)[c(25,500,975)],sklearn$metrics$roc_auc_score(y_true,y_pred.gnn))
-c(sort(aucs.ergm)[c(25,500,975)],sklearn$metrics$roc_auc_score(y_true,y_pred.ergm))
-c(sort(aucs.sim)[c(25,500,975)],sklearn$metrics$roc_auc_score(y_true,y_pred.ergm.sim))
-
-
-get.max.f1<-function(pred,return_val="objective"){
-  m.val<--1
-  if (return_val!='objective'){m.val<-m.val*-1}
-  return(m.val*optimize(function(x) -sklearn$metrics$f1_score(y_true,pred>x),c(0,1))[[return_val]])
-}
-get.max.f1(y_pred.gnn)
-get.max.f1(y_pred.ergm)
-get.max.f1(y_pred.ergm.sim)
-plot(degree_distribution(graph_from_adjacency_matrix(Adj.gnn>get.max.f1(y_pred.gnn,"minimum")),mode='all'))
-plot(degree_distribution(graph_from_adjacency_matrix(Adj>get.max.f1(y_pred.ergm,"minimum")),mode='all'))
-```
-
-# Social Influence (should not do this on binary outcomes)
+# Social Influence 
 ```{r}
 # fit lnam model
 X<-data.frame(vertex_attr(net))
@@ -523,4 +378,3 @@ plot.net(net,group=cl.gnn)
 set.seed(42)
 plot.net(net,group=cl.louvain)
 ```
-

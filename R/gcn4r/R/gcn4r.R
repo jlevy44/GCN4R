@@ -547,7 +547,7 @@ vis.weighted.graph<-function(weight_matrix=NULL, cl=0, weight.scaling.factor=2, 
   else {return(weight_matrix)}
 }
 
-visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,...){
+visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,random_seed=42,...){
   gnn.model<-perturb.graph(gnn.model,perturb,erdos_flip_p,erdos_flip_p_neg,random_seed)
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"attention"
@@ -584,7 +584,7 @@ visualize.attention<-function(gnn.model,weight.scaling.factor=20.,latent=F,plot=
   return(weight_matrices)
 }
 
-interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients",plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01){
+interpret.predictors<-function(gnn.model,interpretation.mode="integrated_gradients",plot=T,perturb="none",erdos_flip_p=0.5,erdos_flip_p_neg=0.01,random_seed=42,...){
   gnn.model<-perturb.graph(gnn.model,perturb,erdos_flip_p,erdos_flip_p_neg,random_seed)
   parameters<-extract.parameters(gnn.model)
   parameters$mode<-"captum"

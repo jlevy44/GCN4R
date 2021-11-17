@@ -1,0 +1,38 @@
+# FIRST ATTEMPTS
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0 --lambda_adv 0 --lambda_cluster 0 --learning_rate 1e-3
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0 --lambda_adv 0 --lambda_cluster 0 --learning_rate 1e-3 --predict True
+gcn4r visualize --pos_threshold 0.5449743866920471 --use_predicted_graph False --layout spring
+
+# R CODE
+library(reticulate)
+library(gcn4r)
+reticulate:::conda_list(conda = "auto")
+source.python('/anaconda2/envs/gcn4r/bin/python')
+gcn4r<-import_gcn4r()
+train_model(custom_dataset = 'lawyer', random_seed = 50L, lambda_adv = 0L, lambda_cluster = 0L, lambda_kl=0L, learning_rate = 1e-3, random_seed=50L)
+train_model(custom_dataset = 'lawyer', random_seed = 50L, lambda_adv = 0L, lambda_cluster = 0L, lambda_kl=0L, learning_rate = 1e-3, predict=T, random_seed=50L)
+visualize(pos_threshold=0.549763,use_predicted_graph=F,layout="spring")
+visualize(pos_threshold=0.549763,use_predicted_graph=F,layout="latent")
+
+# MORE ATTEMPTS
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0 --lambda_adv 0 --lambda_cluster 25. --learning_rate 1e-3 --epoch_cluster 150 --K 2
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0 --lambda_adv 0 --lambda_cluster 25. --learning_rate 1e-3 --epoch_cluster 150 --K 2 --predict True
+train_model(custom_dataset = 'lawyer', random_seed = 50L, lambda_adv = 0L, lambda_cluster = 1e-4, epoch_cluster=150L, K=3, lambda_kl=0L, learning_rate = 1e-3)
+gcn4r visualize --pos_threshold 0.5449743866920471 --use_predicted_graph False --layout spring
+gcn4r visualize --pos_threshold 0.5178 --use_predicted_graph True --color_clusters True --layout latent
+gcn4r train_model --custom_dataset lawyer --lambda_kl 1e-2 --ae_type VGAE --lambda_adv 0 --lambda_cluster 0. --learning_rate 1e-3 --epoch_cluster 150 --K 8 --predict False
+
+# BEST ATTEMPT SO FAR
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0.0 --ae_type ARGA --lambda_adv 0.001 --lambda_cluster 1. --learning_rate 1e-2 --epoch_cluster 120 --K 2 --predict False
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0.0 --ae_type ARGA --lambda_adv 0.001 --lambda_cluster 1. --learning_rate 1e-2 --epoch_cluster 120 --K 2 --predict True
+gcn4r visualize --pos_threshold 0.557 --use_predicted_graph True --color_clusters True --layout latent
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0.0 --ae_type ARGA --lambda_adv 0.001 --lambda_cluster 1. --learning_rate 1e-3 --epoch_cluster 120 --K 3 --predict False --encoder_base GATConv --use_mincut True
+
+gcn4r train_model --custom_dataset lawyer --lambda_kl 0.0 --ae_type ARGA --lambda_adv 0.001 --lambda_cluster 1. --learning_rate 1e-2 --epoch_cluster 120 --K 3 --predict False --kmeans_use_probs True --encoder_base GATConv
+
+
+gcn4r train_model --custom_dataset lawyer --lambda_kl 1. --ae_type ARGVA --lambda_adv 0.001 --lambda_cluster 0.5 --learning_rate 1e-2 --epoch_cluster 120 --K 3 --predict False --kmeans_use_probs False --use_mincut True --encoder_base GATConv
+
+gcn4r train_model --custom_dataset lawyer --lambda_kl 1. --ae_type ARGVA --lambda_adv 0.001 --lambda_cluster 0.5 --learning_rate 1e-2 --epoch_cluster 120 --K 3 --predict True --task classification --kmeans_use_probs False --use_mincut True --encoder_base GATConv --prediction_column 2 --val_ratio 0.1 --test_ratio 0.1 --lambda_pred 1.
+
+gcn4r train_model --custom_dataset lawyer --lambda_kl 1. --ae_type ARGVA --lambda_adv 0.001 --lambda_cluster 0.5 --learning_rate 1e-2 --epoch_cluster 120 --K 3 --predict False --task regression --kmeans_use_probs False --use_mincut True --encoder_base GATConv --prediction_column 2 --val_ratio 0.1 --test_ratio 0.1 --lambda_pred 1.
