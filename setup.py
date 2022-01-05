@@ -7,7 +7,7 @@ PACKAGES=['pysnooper',
             'fire',
             'numpy==1.18.1',
             'pandas==0.25.3',
-            'networkx==2.4',
+            'networkx>=2.4',
             'torch==1.4.0',
             'scikit-learn==0.22.1',
             'scipy==1.4.1',
@@ -21,7 +21,7 @@ PACKAGES=['pysnooper',
             'seaborn==0.10.0',
             'plotly==4.5.0',
             'rpy2==2.9.4',
-            'cdlib==0.1.8',
+            'cdlib>=0.1.8',
             'captum==0.2.0']
 
 with open('README.md','r', encoding='utf-8') as f:
