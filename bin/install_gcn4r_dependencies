@@ -1,2 +1,9 @@
 #!/bin/bash
 # pip install git+https://github.com/rusty1s/pytorch_geometric.git@fcd0c51521001aecc9651e6b9916f50b4c458f19
+TORCH_VERSION=$1
+CUDA_VERSION=$2
+pip install torch-scatter==2.0.4 -f https://data.pyg.org/whl/torch-${TORCH_VERSION}+${CUDA_VERSION}.html
+pip install torch-sparse==0.6.1 -f https://data.pyg.org/whl/torch-${TORCH_VERSION}+${CUDA_VERSION}.html
+pip install torch-cluster==1.5.4 -f https://data.pyg.org/whl/torch-${TORCH_VERSION}+${CUDA_VERSION}.html
+pip install torch_spline_conv==1.2.0 -f https://data.pyg.org/whl/torch-${TORCH_VERSION}+${CUDA_VERSION}.html
+pip install torch-geometric==1.5.0

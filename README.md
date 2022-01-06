@@ -7,6 +7,11 @@ First, install the python package:
 ```
 pip install git+https://github.com/jlevy44/GCN4R
 ```
+Install additional python dependencies:
+```
+install_gcn4r_dependencies ${TORCH_VERSION} ${CUDA_VERSION}
+```
+With TORCH_VERSION and CUDA_VERSION set according to https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html.
 Then, install the R package:  
 ```
 devtools::install_github("jlevy44/gcn4r")
