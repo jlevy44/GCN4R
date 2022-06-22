@@ -5,7 +5,7 @@ import os
 
 PACKAGES=['pysnooper',
             'fire',
-            'numpy==1.18.1',
+            'numpy==1.22.0',
             'pandas==0.25.3',
             'networkx>=2.4',
             'torch==1.4.0',
