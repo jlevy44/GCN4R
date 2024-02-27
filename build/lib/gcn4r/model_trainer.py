@@ -417,7 +417,7 @@ class ModelTrainer:
 				if plot_training_curves:
 					self.plot_train_val_curves(plot_save_file)
 				print("Epoch {}: Train Loss {}, Val Loss {}, Train Time {}, Val Time {}".format(epoch,train_loss,val_loss,train_time,val_time))
-			if self.add_cluster_loss and self.add_kl and (val_loss <= min(self.val_losses)) and save_model:
+			if self.add_cluster_loss and self.add_kl and val_loss <= min(self.val_losses) and save_model:
 				print("New Best Model at Epoch {}".format(epoch))
 				min_val_loss = val_loss
 				best_epoch = epoch

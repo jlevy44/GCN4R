@@ -1,0 +1,2 @@
+[console_scripts]
+gcn4r = gcn4r.cli:main

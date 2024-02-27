@@ -1,0 +1,49 @@
+Metadata-Version: 2.1
+Name: gcn4r
+Version: 0.1
+Summary: Code to accompany GCN4R package.
+Home-page: https://github.com/jlevy44/GCN4R
+Author: Joshua Levy
+Author-email: joshualevy44@berkeley.edu
+License: MIT
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pysnooper
+Requires-Dist: fire
+Requires-Dist: numpy==1.18.1
+Requires-Dist: pandas==0.25.3
+Requires-Dist: networkx>=2.4
+Requires-Dist: torch==1.4.0
+Requires-Dist: scikit-learn==0.22.1
+Requires-Dist: scipy==1.4.1
+Requires-Dist: torchvision==0.5.0
+Requires-Dist: matplotlib==3.1.2
+Requires-Dist: seaborn==0.10.0
+Requires-Dist: plotly==4.5.0
+Requires-Dist: rpy2==2.9.4
+Requires-Dist: cdlib>=0.1.8
+Requires-Dist: captum==0.2.0
+
+# GCN4R
+
+Welcome to the GCN4R package, which is the first R package to allow custom fitting of Graph Neural Networks to social/biological network data. We are currently updating our documentation, but for now you can find a complete description of our work here: https://www.biorxiv.org/content/10.1101/2020.11.02.364935v1   
+
+To install:  
+First, install the python package:  
+```
+pip install git+https://github.com/jlevy44/GCN4R
+```
+Install additional python dependencies:
+```
+install_gcn4r_dependencies ${TORCH_VERSION} ${CUDA_VERSION}
+```
+With TORCH_VERSION and CUDA_VERSION set according to https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html.
+Then, install the R package:  
+```
+devtools::install_github("jlevy44/gcn4r")
+```
+
+Then, either read our tutorial paper or check out our R Markdown tutorial [here](https://github.com/jlevy44/GCN4R/blob/master/test/gcn4r_demo.Rmd) to get started.
+
+![im1](https://user-images.githubusercontent.com/19698023/98269730-1aae1280-1f5c-11eb-89ac-83aeebdeda71.jpeg)
+![im2](https://user-images.githubusercontent.com/19698023/98269732-1bdf3f80-1f5c-11eb-8835-9a8b57ab1fb0.jpeg)
